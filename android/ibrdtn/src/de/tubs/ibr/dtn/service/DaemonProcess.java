@@ -60,9 +60,9 @@ public class DaemonProcess {
 	private NativeDaemon mDaemon = null;
 	private DaemonProcessHandler mHandler = null;
 	private Context mContext = null;
-	private DaemonState _state = DaemonState.OFFLINE;
+	private DaemonState mState = DaemonState.OFFLINE;
 	
-    private WifiManager.MulticastLock _mcast_lock = null;
+    private WifiManager.MulticastLock mMcastLock = null;
 
 	private final static String GNUSTL_NAME = "gnustl_shared";
 	private final static String CRYPTO_NAME = "crypto";
@@ -157,13 +157,13 @@ public class DaemonProcess {
 	}
 	
 	public DaemonState getState() {
-	    return _state;
+	    return mState;
 	}
 	
     private void setState(DaemonState newState) {
-        if (_state.equals(newState)) return;
-        _state = newState;
-        mHandler.onStateChanged(_state);
+        if (mState.equals(newState)) return;
+        mState = newState;
+        mHandler.onStateChanged(mState);
     }
     
     public synchronized void initiateConnection(String endpoint) {
@@ -179,9 +179,6 @@ public class DaemonProcess {
     	// get daemon preferences
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this.mContext);
         
-        // listen to preference changes
-        preferences.registerOnSharedPreferenceChangeListener(_pref_listener);
-
         // enable debug based on prefs
         int logLevel = 0;
         try {
@@ -237,14 +234,17 @@ public class DaemonProcess {
         } catch (NativeDaemonException e) {
             Log.e(TAG, "error while initializing the daemon process", e);
         }
+        
+        // listen to preference changes
+        preferences.registerOnSharedPreferenceChangeListener(mPrefListener);
     }
 	
 	public synchronized void start() {
 	    WifiManager wifi_manager = (WifiManager)mContext.getSystemService(Context.WIFI_SERVICE);
 
         // listen to multicast packets
-        _mcast_lock = wifi_manager.createMulticastLock(TAG);
-        _mcast_lock.acquire();
+        mMcastLock = wifi_manager.createMulticastLock(TAG);
+        mMcastLock.acquire();
 
         // reload daemon configuration
         onConfigurationChanged();
@@ -265,9 +265,9 @@ public class DaemonProcess {
         }
 
 	    // release multicast lock
-        if (_mcast_lock != null) {
-            _mcast_lock.release();
-            _mcast_lock = null;
+        if (mMcastLock != null) {
+            mMcastLock.release();
+            mMcastLock = null;
         }
 	}
 	
@@ -305,7 +305,7 @@ public class DaemonProcess {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this.mContext);
         
         // unlisten to preference changes
-        preferences.unregisterOnSharedPreferenceChangeListener(_pref_listener);
+        preferences.unregisterOnSharedPreferenceChangeListener(mPrefListener);
         
         // stop the running daemon
         try {
@@ -349,7 +349,7 @@ public class DaemonProcess {
         return ret;
     }
     
-    private SharedPreferences.OnSharedPreferenceChangeListener _pref_listener = new SharedPreferences.OnSharedPreferenceChangeListener() {
+    private SharedPreferences.OnSharedPreferenceChangeListener mPrefListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
         @Override
         public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
             Log.d(TAG, "Preferences has changed " + key);
