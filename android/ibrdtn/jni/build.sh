@@ -29,14 +29,14 @@ cd ..
 # check if the existing directory has the right revision
 if [ -e openssl ]; then
   cd openssl; REV=$(git rev-parse HEAD|tr -d '\n'); cd ..
-  if [ "${REV}" != "8c6a9abf76767407afd652ed65fba32620c38e04" ]; then
+  if [ "${REV}" != "59254098a1ebe67b1d8faee1c8f87400974367de" ]; then
     rm -rf openssl
   fi
 fi
 [ ! -e openssl ] && git clone git://github.com/ibrdtn/openssl-android.git openssl
 cd openssl
 git fetch --tags
-git checkout 8c6a9abf76767407afd652ed65fba32620c38e04
+git checkout 59254098a1ebe67b1d8faee1c8f87400974367de
 cd ..
 
 echo ""
