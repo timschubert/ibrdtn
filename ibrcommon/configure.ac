@@ -125,6 +125,13 @@ ANDROID_AC_BUILD([
 	#AC_DEFINE(HAVE_LOWPAN_SUPPORT, [1], [])
 	use_lowpan="no"
 
+	# usb
+	AC_DEFINE(HAVE_LIBUSB, [1], ["usb library is available"])
+	AC_DEFINE(IBRCOMMON_SUPPORT_USB, [1], ["usb extension is available"])
+	LIBUSB_LIBS="-lusb-1.0"
+	AC_SUBST(LIBUSB_LIBS)
+	use_usb="no"
+
 	# disabled:
 	#AC_DEFINE(HAVE_LIBNL, [1], [])
 	#AC_DEFINE(HAVE_PTHREAD_CONDATTR_SETCLOCK, [1], [])
@@ -349,6 +356,30 @@ ANDROID_AC_BUILD([
 		use_openssl="no"
 	])
 
+	# check for libusb
+	AC_ARG_WITH(usb,
+		AS_HELP_STRING([--with-usb], [Build with usb support
+			@<:@default=no@:>@]),
+		[
+		if test "x$with_usb" = "xyes"; then
+		   PKG_CHECK_MODULES(LIBUSB, libusb-1.0, [
+		   		use_libusb="yes"
+				AC_DEFINE(HAVE_LIBUSB, [1], ["usb library is available"])
+				AC_DEFINE(IBRCOMMON_SUPPORT_USB, [1], ["usb extension is available"])
+				AC_SUBST(LIBUSB_CFLAGS)
+				AC_SUBST(LIBUSB_LIBS)
+				REQUIRES_LIBS="$REQUIRES_LIBS libusb-1.0"
+			], [
+			   use_libusb="no"
+			   AC_MSG_WARN([usb extension requested, but no usb library is found. usb extensions are disabled.])
+			])
+		else
+			use_libusb="no"
+		fi
+		],[
+		use_libusb="no"
+	])
+
 
 	# Checks for lowpan support
 	AC_ARG_WITH(lowpan,
@@ -399,6 +430,7 @@ ANDROID_AC_BUILD([
 
 # Variables for Makefile.am
 AM_CONDITIONAL(OPENSSL, test x$use_openssl = xyes)
+AM_CONDITIONAL(LIBUSB, test x$use_libusb = xyes)
 AM_CONDITIONAL(LOWPAN, test x$use_lowpan = xyes)
 AM_CONDITIONAL(NETLINK, test x$use_netlink = xyes)
 AM_CONDITIONAL(LIBXML, test x$use_xml = xyes)
@@ -420,6 +452,7 @@ AC_CONFIG_FILES([Makefile \
 	ibrcommon/ssl/Makefile \
 	ibrcommon/ssl/gcm/Makefile \
 	ibrcommon/xml/Makefile \
+	ibrcommon/usb/Makefile \
 	tests/Makefile \
 	tests/unittests/Makefile \
 	tests/stress/Makefile])

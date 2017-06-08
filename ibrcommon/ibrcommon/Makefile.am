@@ -10,6 +10,10 @@ if LIBXML
 SUBDIRS += xml
 endif
 
+if LIBUSB
+SUBDIRS += usb
+endif
+
 nodist_noinst_HEADERS = config.h
 
 h_sources = \
@@ -68,6 +72,10 @@ libibrcommon_la_LDFLAGS += -no-undefined
 endif
 endif
 
+if LIBUSB
+ibrcommon_libs += usb/libibrcommon_usb.la
+endif
+
 Android.mk: Makefile.am
 	$(ANDROGENIZER) -:PROJECT $(GENERIC_LIBRARY_NAME) \
 		-:REL_TOP $(top_srcdir) -:ABS_TOP $(abs_top_srcdir) \
@@ -77,7 +85,7 @@ Android.mk: Makefile.am
 		-:LDFLAGS $(AM_LDFLAGS) \
 			$(ibrcommon_libs) \
 			-llog \
-		-:LIBFILTER_WHOLE ibrcommon_data ibrcommon_link ibrcommon_net ibrcommon_thread ibrcommon_ssl ibrcommon_gcm ibrcommon_xml \
+		-:LIBFILTER_WHOLE ibrcommon_data ibrcommon_link ibrcommon_net ibrcommon_thread ibrcommon_ssl ibrcommon_gcm ibrcommon_xml ibrcommon_usb \
 			nl-3 nl-genl-3 nl-route-3 \
 		-:SUBDIR $(patsubst %,ibrcommon/%, $(SUBDIRS)) \
 		> $@
