@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <vector>
 #include "usbsocket.h"
+#include "ibrcommon/Logger.h"
 
 namespace ibrcommon
 {

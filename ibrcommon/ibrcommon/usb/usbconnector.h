@@ -27,6 +27,7 @@
 #include "ibrcommon/net/vinterface.h"
 #include "ibrcommon/net/vsocket.h"
 #include "ibrcommon/thread/Thread.h"
+#include "ibrcommon/Logger.h"
 #include "usbinterface.h"
 #include <libusb-1.0/libusb.h>
 #include <poll.h>

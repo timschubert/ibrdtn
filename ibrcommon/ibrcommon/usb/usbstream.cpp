@@ -72,6 +72,13 @@ namespace ibrcommon
 			vaddress empty;
 			usbsocket::transfer *trans = new usbsocket::transfer(&out_buf_[0], iend - ibegin, empty, *this, _sock, false);
 			_sock.sendto(trans);
+			try
+			{
+				trans->done.wait();
+			} catch (Conditional::ConditionalAbortException &e)
+			{
+				IBRCOMMON_LOGGER_TAG("usbstream::overflow", warning) << "waiting for transfer to complete aborted." << IBRCOMMON_LOGGER_ENDL;
+			}
 
 			/* update the position of the free buffer */
 			char *buffer_begin = iend;
@@ -94,7 +101,7 @@ namespace ibrcommon
 		if (trans->in)
 		{
 			usbsocket &sock = trans->sock();
-			read((char *)(trans->buf()[0]), trans->buflen());
+			read((char *) (trans->buf()[0]), trans->buflen());
 			_waiting_in = false;
 		}
 		delete trans;
@@ -107,8 +114,16 @@ namespace ibrcommon
 		{
 			if (!_waiting_in)
 			{
-				usbsocket::transfer *trans = new usbsocket::transfer(&_in_buf[0], _in_buf_len, empty, *this, _sock, true);
 				_waiting_in = true;
+				usbsocket::transfer *trans = new usbsocket::transfer(&_in_buf[0], _in_buf_len, empty, *this, _sock, true);
+				_sock.recvfrom(trans);
+				try
+				{
+					trans->done.wait();
+				} catch (Conditional::ConditionalAbortException &e)
+				{
+					IBRCOMMON_LOGGER_TAG("usbstream::underflow", warning) << "waiting for transfer to complete aborted." << IBRCOMMON_LOGGER_ENDL;
+				}
 			}
 		} catch (USBError &e)
 		{
