@@ -29,50 +29,64 @@
 
 namespace ibrcommon
 {
-	namespace usb
+	class usbsocket: public basesocket
 	{
+	public:
 
-		class usbsocket : public datagramsocket
+		class transfer
 		{
 		public:
-			enum socket_status
-			{
-				socket_up,
-				socket_down
-			};
+			// TODO to config
+			static const size_t INBUFLEN = 10000;
 
-			// TODO replace with event
-			class usbsocketcb
+			class transfer_cb
 			{
 			public:
-				virtual ~usbsocketcb()
-				{
-				}
-				virtual void event_data_out(char *buf, size_t buflen) = 0;
-				virtual void event_data_in(char *buf, size_t buflen) = 0;
+				void transfer_completed(transfer *trans);
 			};
 
-			const uint8_t ep_in;
-			const uint8_t ep_out;
-			const usbinterface interface;
+			transfer(const char *buf, size_t _buflen, ibrcommon::vaddress &addr, const transfer_cb callback, usbsocket &sock, bool in);
+			~transfer();
+			ibrcommon::Conditional done;
+			const ibrcommon::vaddress &_addr;
+			const bool in;
+			int _transmitted;
 
-			usbsocket(const usbinterface &iface, const char &endpoint_in, const char &endpoint_out);
-			virtual ~usbsocket();
-
-			void up() throw(socket_exception);
-			void down() throw(socket_exception);
-
-			static void prepare_transfer(unsigned char *buf, int buflen, int flags, const ibrcommon::vaddress &addr, libusb_device_handle *handle,
-			                             unsigned char endpoint, uint32_t stream_id);
-
-			virtual ssize_t recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw(socket_exception);
-			virtual void sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw(socket_exception);
+			void abort();
+			bool aborted();
+			uint8_t* buf();
+			size_t buflen();
+			transfer_cb& cb();
+			usbsocket& sock();
 
 		private:
-			static void usb_send(struct libusb_device_handle *handle, uint8_t *message, int length, libusb_transfer_cb_fn cb);
-			static void transfer_completed_cb(struct libusb_transfer *transfer);
+			bool _aborted;
+			transfer_cb _cb;
+			uint8_t *_buf;
+			size_t _buflen;
+			usbsocket &_sock;
 		};
-	}
+
+		const uint8_t ep_in;
+		const uint8_t ep_out;
+		const usbinterface interface;
+
+		usbsocket(const usbinterface &iface, const char &endpoint_in, const char &endpoint_out);
+		virtual ~usbsocket();
+
+		void up() throw (socket_exception);
+		void down() throw (socket_exception);
+
+		static void prepare_transfer(unsigned char *buf, int buflen, transfer *initiator, libusb_device_handle *handle, unsigned char endpoint,
+				uint32_t stream_id, bool in);
+
+		virtual void recvfrom(transfer *trans) throw (socket_exception);
+		virtual void sendto(transfer *trans) throw (socket_exception);
+
+	private:
+		static void usb_send(struct libusb_device_handle *handle, uint8_t *message, int length, libusb_transfer_cb_fn cb);
+		static void transfer_completed_cb(struct libusb_transfer *transfer);
+	};
 }
 
 #endif // USBSOCKET_H_

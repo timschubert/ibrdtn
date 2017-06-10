@@ -23,41 +23,39 @@
 
 namespace ibrcommon
 {
-	namespace usb
+	usbinterface::usbinterface(std::string &name, libusb_device_handle *device, const int &num)
+			: vinterface(name), interface_num(num), _device(device)
 	{
-		usbinterface::usbinterface(std::string &name, libusb_device_handle *device, const int &num) : vinterface(name), interface_num(num), _device(device)
-		{
-		}
+	}
 
-		usbinterface::~usbinterface()
-		{
-			set_down();
-			libusb_close(_device);
-		}
+	usbinterface::~usbinterface()
+	{
+		set_down();
+		libusb_close (_device);
+	}
 
-		void usbinterface::set_up()
+	void usbinterface::set_up()
+	{
+		int err = libusb_claim_interface(_device, interface_num);
+		if (err)
 		{
-			int err = libusb_claim_interface(_device, interface_num);
-			if (err)
-			{
-				throw usb::USBError(static_cast<libusb_error>(err));
-			}
+			throw USBError(static_cast<libusb_error>(err));
 		}
+	}
 
-		void usbinterface::set_down()
+	void usbinterface::set_down()
+	{
+		/* Note: streams are automagically freed when releasing an interface */
+		// TODO close sockets (send event)
+		int err = libusb_release_interface(_device, interface_num);
+		if (err)
 		{
-			/* Note: streams are automagically freed when releasing an interface */
-			// TODO close sockets (send event)
-			int err = libusb_release_interface(_device, interface_num);
-			if (err)
-			{
-				throw usb::USBError(static_cast<libusb_error>(err));
-			}
+			throw USBError(static_cast<libusb_error>(err));
 		}
+	}
 
-		libusb_device_handle *usbinterface::device() const
-		{
-			return _device;
-		}
+	libusb_device_handle *usbinterface::device() const
+	{
+		return _device;
 	}
 }

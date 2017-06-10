@@ -31,48 +31,49 @@
 
 namespace ibrcommon
 {
-	namespace usb
+	class USBError: public std::exception
 	{
-		class USBError : public std::exception
+	public:
+		USBError(libusb_error e)
+				: _e(e)
+		{
+		}
+
+		virtual const char *what() const throw ()
+		{
+			return usb_error_string(_e);
+		}
+
+	private:
+		libusb_error _e;
+	};
+
+	class usbinterface: public vinterface
+	{
+	public:
+		class usb_link_cb
 		{
 		public:
-			USBError(libusb_error e) : _e(e)
-				{
-				}
-
-			virtual const char *what() const throw()
-				{
-					return usb_error_string(_e);
-				}
-
-		private:
-			libusb_error _e;
-		};
-
-		class usbinterface : public vinterface
-		{
-		public:
-			class usb_link_cb
+			virtual ~usb_link_cb()
 			{
-			public:
-				virtual ~usb_link_cb(){};
-				virtual void event_link_up(usbinterface &iface) = 0;
-				virtual void event_link_down(usbinterface &iface) = 0;
-			};
-
-			const int interface_num;
-
-			usbinterface(std::string &name, libusb_device_handle *device, const int &interface_num);
-			virtual ~usbinterface();
-
-			void set_up();
-			void set_down();
-			libusb_device_handle *device() const;
-
-		private:
-			libusb_device_handle *_device;
+			}
+			;
+			virtual void event_link_up(usbinterface &iface) = 0;
+			virtual void event_link_down(usbinterface &iface) = 0;
 		};
-	}
+
+		const int interface_num;
+
+		usbinterface(std::string &name, libusb_device_handle *device, const int &interface_num);
+		virtual ~usbinterface();
+
+		void set_up();
+		void set_down();
+		libusb_device_handle *device() const;
+
+	private:
+		libusb_device_handle *_device;
+	};
 }
 
 #endif // USBINTERFACE_H_

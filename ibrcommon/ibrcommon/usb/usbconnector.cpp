@@ -28,22 +28,6 @@
 
 namespace ibrcommon
 {
-	class USBError : public std::exception
-	{
-	public:
-		USBError(libusb_error e) : _e(e)
-		{
-		}
-
-		virtual const char *what() const throw()
-		{
-			return usb_error_string(_e);
-		}
-
-	private:
-		libusb_error _e;
-	};
-
 	void usbconnector::usb_thread::__cancellation() throw()
 	{
 		_libusb_polling.destroy();
@@ -86,7 +70,7 @@ namespace ibrcommon
 		std::stringstream s;
 		s << "usb" << ':' << busnum << ':' << address;
 		std::string iface_name = s.str();
-		usb::usbinterface iface(iface_name, handle, DEFAULT_INTERFACE);
+		usbinterface iface(iface_name, handle, DEFAULT_INTERFACE);
 
 		switch (event)
 		{
@@ -104,6 +88,7 @@ namespace ibrcommon
 	{
 		if (_cap_hotplug)
 		{
+			ibrcommon::MutexLock l(_hotplug_handles_lock);
 			/* register callback for new device; do not save handle do not need it */
 			libusb_hotplug_callback_handle *cb_handle = new libusb_hotplug_callback_handle();
 			int err = libusb_hotplug_register_callback(
@@ -129,6 +114,7 @@ namespace ibrcommon
 	{
 		if (_cap_hotplug)
 		{
+			ibrcommon::MutexLock l(_hotplug_handles_lock);
 			std::vector<usb_device_cb_registration> registrations = _hotplug_handles[cb];
 
 			/* find all registrations that matches the vendor + product pair */

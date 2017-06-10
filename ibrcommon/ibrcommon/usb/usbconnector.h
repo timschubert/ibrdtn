@@ -39,8 +39,8 @@ namespace ibrcommon
 		class usb_device_cb
 		{
 		public:
-			virtual void interface_discovered(usb::usbinterface &iface) = 0;
-			virtual void interface_lost(usb::usbinterface &iface) = 0;
+			virtual void interface_discovered(usbinterface &iface) = 0;
+			virtual void interface_lost(usbinterface &iface) = 0;
 		};
 
 		class usb_device_cb_registration
@@ -99,6 +99,7 @@ namespace ibrcommon
 		libusb_context *_usb_context;
 		bool _cap_hotplug;
 
+		static ibrcommon::Mutex _hotplug_handles_lock;
 		static std::map<usb_device_cb *, std::vector<usb_device_cb_registration> > _hotplug_handles;
 	};
 
