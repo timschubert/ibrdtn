@@ -23,47 +23,21 @@
 
 namespace ibrcommon
 {
-	usbsocket::transfer::transfer(const char *buf, size_t buflength, ibrcommon::vaddress &addr, const transfer_cb callback, usbsocket &sock, bool input_mode)
-	: _addr(addr), _transmitted(0), _aborted(false), _buflen(buflength), _cb(callback), _sock(sock), in(input_mode)
+	usbsocket::usbinput::usbinput(size_t len, int fd)
 	{
-		if (in)
-		{
-			_buf = new uint8_t[usbsocket::transfer::INBUFLEN];
-		}
-		else
-		{
-			_buf = new uint8_t[_buflen];
-			::memcpy(_buf, buf, _buflen);
-		}
+		_fd = fd;
+		_len = len;
+		_buf = new char[len];
+		_actual_len = 0;
 	}
 
-	usbsocket::transfer::~transfer()
+	usbsocket::usbinput::~usbinput()
 	{
 		delete _buf;
 	}
 
-	void usbsocket::transfer::abort()
-	{
-		_aborted = true;
-	}
-
-	bool usbsocket::transfer::aborted()
-	{
-		return _aborted;
-	}
-
-	uint8_t* usbsocket::transfer::buf()
-	{
-		return _buf;
-	}
-
-	size_t usbsocket::transfer::buflen()
-	{
-		return _buflen;
-	}
-
-	usbsocket::usbsocket(const usbinterface &iface, const char &endpoint_in, const char &endpoint_out)
-			: ep_in(endpoint_in), ep_out(endpoint_out), interface(iface)
+	usbsocket::usbsocket(const usbinterface &iface, const char &endpoint_in, const char &endpoint_out, size_t buflen)
+			: ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _input(buflen, 0)
 	{
 		basesocket::_state = SOCKET_DOWN;
 	}
@@ -81,7 +55,21 @@ namespace ibrcommon
 		{
 			throw USBError(static_cast<libusb_error>(err));
 		}
+		int fds[2];
+		err = ::pipe(fds);
+		if (err)
+		{
+			throw socket_exception("Failed to create pipe.");
+		}
+		_input._fd = fds[0];
+		basesocket::_fd = fds[1];
 		basesocket::_state = SOCKET_UP;
+
+		/* prep the buffer with one pending transfer */
+		if (!prepare_transfer((unsigned char *) _input._buf, _input._len, interface.device(), ep_in, 0, &_input))
+		{
+			throw socket_exception("Failed to prepare new transfer.");
+		}
 	}
 
 	void usbsocket::down() throw (socket_exception)
@@ -93,67 +81,56 @@ namespace ibrcommon
 			throw USBError(static_cast<libusb_error>(err));
 		}
 		basesocket::_state = SOCKET_DOWN;
+		::close(_input._fd);
+		::close (_fd);
 	}
 
-	void usbsocket::prepare_transfer(unsigned char *buf, int buflen, transfer *trans, libusb_device_handle *handle, unsigned char endpoint, uint32_t stream_id,
-			bool in)
+	bool usbsocket::prepare_transfer(unsigned char *buf, int buflen, libusb_device_handle *handle, unsigned char endpoint, uint32_t stream_id, usbinput *input)
 	{
 		struct libusb_transfer *transfer = libusb_alloc_transfer(0);
 		if (!transfer)
 		{
-			fprintf(stderr, "USB: failed to send\n");
+			return false;
 		}
-		libusb_fill_bulk_stream_transfer(transfer, handle, endpoint, stream_id, buf, buflen, transfer_completed_cb, (void *) trans, 1000
 		// TODO use sensible timeout depending on bundle lifetime
-				);
+		libusb_fill_bulk_stream_transfer(transfer, handle, endpoint, stream_id, buf, buflen, transfer_completed_cb, (void *) &input, 1000);
 		int err = libusb_submit_transfer(transfer);
 		if (err)
 		{
 			throw USBError(static_cast<libusb_error>(err));
 		}
+		return true;
 	}
 
-	void usbsocket::recvfrom(transfer *trans) throw (socket_exception)
-	{
-		if (basesocket::_state != SOCKET_UP)
-		{
-			throw socket_error(ERROR_CLOSED, "socket not up");
-		}
-
-		// TODO check if buflen > MAXINT
-		prepare_transfer((unsigned char *) trans->buf(), trans->buflen(), trans, interface.device(), ep_in, 0, true);
-	}
-
-	void usbsocket::sendto(transfer *trans) throw (socket_exception)
-	{
-		if (basesocket::_state != SOCKET_UP)
-		{
-			throw socket_error(ERROR_CLOSED, "socket not up");
-		}
-
-		prepare_transfer((unsigned char *) trans->buf(), trans->buflen(), trans, interface.device(), ep_out, 1, false);
-	}
-
-	usbsocket& usbsocket::transfer::sock()
-	{
-		return _sock;
-	}
-
-	void usbsocket::transfer_completed_cb(struct libusb_transfer *usb_transfer)
+	void usbsocket::transfer_completed_cb(struct libusb_transfer *transfer)
 	{
 		// TODO handle re-submission etc
 		// TODO set socket down on error
-		if (usb_transfer->user_data)
+		/* if input transfer */
+		usbinput *input = static_cast<usbinput *>(transfer->user_data);
+		if (input)
 		{
-			ibrcommon::usbsocket::transfer *trans = static_cast<transfer*>(usb_transfer->user_data);
-			trans->_transmitted = usb_transfer->actual_length;
-			trans->done.signal();
-			if (!trans->aborted())
+			input->_actual_len = transfer->actual_length;
+			/* signal that we have new data, and write new data */
+			//::write(datagramsocket::_fd, transfer->buffer, transfer->actual_length);
+			int err = ::write(input->_fd, "1", 1);
+			if (!err)
 			{
-				trans->cb().transfer_completed(trans);
+				IBRCOMMON_LOGGER_TAG("usbinput", warning) << "Failed to signal new data" << IBRCOMMON_LOGGER_ENDL;
+			}
+
+			/* prepare the buffer with one pending transfer */
+			if (!prepare_transfer(transfer->buffer, transfer->length, transfer->dev_handle, transfer->endpoint, 0, input))
+			{
+				IBRCOMMON_LOGGER_TAG("libsub", critical) << "Failed to prepare next transfer." << IBRCOMMON_LOGGER_ENDL;
 			}
 		}
-		libusb_free_transfer(usb_transfer);
+		else
+		{
+			/* out transfer completed */
+			delete transfer->buffer;
+		}
+		libusb_free_transfer (transfer);
 	}
 
 	bool match_device(libusb_device *device, const uint16_t &vendor, const uint16_t &product)
@@ -172,5 +149,28 @@ namespace ibrcommon
 			}
 		}
 		return false;
+	}
+
+	ssize_t usbsocket::recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw (socket_exception)
+	{
+		/* block until data is ready */
+		char pseudo[1];
+		size_t err = read(datagramsocket::fd(), pseudo, 1);
+		if (!err)
+		{
+			throw socket_exception("read failed");
+		}
+		::memcpy(buf, _input._buf, _input._actual_len);
+		return _input._actual_len;
+	}
+
+	void usbsocket::sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw (socket_exception)
+	{
+		char *out_buf = new char[buflen];
+		::memcpy(out_buf, buf, buflen);
+		if (!prepare_transfer((unsigned char *) out_buf, buflen, interface.device(), ep_out, 0, NULL))
+		{
+			throw socket_exception("Failed to prepare new transfer.");
+		}
 	}
 }

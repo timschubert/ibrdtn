@@ -25,15 +25,14 @@
 #define usb_error_string(e) libusb_strerror((enum libusb_error) e)
 #endif
 
-
 namespace ibrcommon
 {
-	void usbconnector::usb_thread::__cancellation() throw()
+	void usbconnector::usb_thread::__cancellation() throw ()
 	{
 		_libusb_polling.destroy();
 	}
 
-	void usbconnector::usb_thread::setup() throw()
+	void usbconnector::usb_thread::setup() throw ()
 	{
 		/* Add callbacks */
 		libusb_set_pollfd_notifiers(_context, fd_added_callback, usb_fd_removed_callback, this);
@@ -61,7 +60,8 @@ namespace ibrcommon
 		int err = libusb_open(device, &handle);
 		if (err)
 		{
-			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90) << "failed to open device" << IBRCOMMON_LOGGER_ENDL;
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90)
+				<< "failed to open device" << IBRCOMMON_LOGGER_ENDL;
 			return -1;
 		}
 
@@ -74,26 +74,34 @@ namespace ibrcommon
 
 		switch (event)
 		{
-			case LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED:
-				call_this->interface_discovered(iface);
-				break;
-			case LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT:
-				call_this->interface_lost(iface);
-				break;
+		case LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED:
+			call_this->interface_discovered(iface);
+			break;
+		case LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT:
+			call_this->interface_lost(iface);
+			break;
 		}
 		return 0;
 	}
 
 	void usbconnector::register_device_cb(usb_device_cb *cb, int vendor, int product)
 	{
+		if (vendor == 0)
+		{
+			vendor = LIBUSB_HOTPLUG_MATCH_ANY;
+		}
+		if (product == 0)
+		{
+			product = LIBUSB_HOTPLUG_MATCH_ANY;
+		}
 		if (_cap_hotplug)
 		{
 			ibrcommon::MutexLock l(_hotplug_handles_lock);
 			/* register callback for new device; do not save handle do not need it */
 			libusb_hotplug_callback_handle *cb_handle = new libusb_hotplug_callback_handle();
-			int err = libusb_hotplug_register_callback(
-			  _usb_context, static_cast<libusb_hotplug_event>(LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT), LIBUSB_HOTPLUG_NO_FLAGS,
-			  vendor, product, LIBUSB_HOTPLUG_MATCH_ANY, libusb_hotplug_cb, static_cast<void *>(cb), cb_handle);
+			int err = libusb_hotplug_register_callback(_usb_context,
+					static_cast<libusb_hotplug_event>(LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT), LIBUSB_HOTPLUG_NO_FLAGS, vendor,
+					product, LIBUSB_HOTPLUG_MATCH_ANY, libusb_hotplug_cb, static_cast<void *>(cb), cb_handle);
 			if (err)
 			{
 				throw USBError(static_cast<libusb_error>(err));
@@ -133,12 +141,13 @@ namespace ibrcommon
 		}
 	}
 
-	void usbconnector::usb_thread::finally() throw()
+	void usbconnector::usb_thread::finally() throw ()
 	{
 		_libusb_polling.destroy();
 	}
 
-	usbconnector::usb_thread::usb_thread(libusb_context *con) : _context(con)
+	usbconnector::usb_thread::usb_thread(libusb_context *con)
+			: _context(con)
 	{
 	}
 
@@ -146,7 +155,7 @@ namespace ibrcommon
 	{
 	}
 
-	void usbconnector::usb_thread::run() throw()
+	void usbconnector::usb_thread::run() throw ()
 	{
 		for (;;)
 		{
@@ -160,10 +169,10 @@ namespace ibrcommon
 			{
 				ibrcommon::MutexLock l(_pollfd_lock);
 				_libusb_polling.select(&in_pollset, &out_pollset, NULL, &timeout);
-			}
-			catch (socket_exception &e)
+			} catch (socket_exception &e)
 			{
-				IBRCOMMON_LOGGER_DEBUG_TAG("usb_thread::run", 90) << "error in select on libsub fds" << IBRCOMMON_LOGGER_ENDL;
+				IBRCOMMON_LOGGER_DEBUG_TAG("usb_thread::run", 90)
+					<< "error in select on libsub fds" << IBRCOMMON_LOGGER_ENDL;
 			}
 			/* if the system requires non-zero timeouts, this will lead to bugs */
 			struct timeval zero_timeout = {0, 0};
@@ -228,14 +237,14 @@ namespace ibrcommon
 		}
 	}
 
-
 	usbconnector &usbconnector::get_instance()
 	{
 		static usbconnector _instance;
 		return _instance;
 	}
 
-	usbconnector::usbconnector() : _cap_hotplug(true)
+	usbconnector::usbconnector()
+			: _cap_hotplug(true)
 	{
 		int res = libusb_init(&_usb_context);
 		if (res)
@@ -246,7 +255,8 @@ namespace ibrcommon
 		/* detect capabilities */
 		if (!libusb_has_capability(LIBUSB_CAP_HAS_HOTPLUG))
 		{
-			IBRCOMMON_LOGGER_DEBUG_TAG("usb_thread::setup", 90) << "no usb hotplug support detected" << IBRCOMMON_LOGGER_ENDL;
+			IBRCOMMON_LOGGER_DEBUG_TAG("usb_thread::setup", 90)
+				<< "no usb hotplug support detected" << IBRCOMMON_LOGGER_ENDL;
 			_cap_hotplug = false;
 		}
 
@@ -276,10 +286,11 @@ namespace ibrcommon
 		for (ssize_t i = 0; i < cnt_devices; i++)
 		{
 			libusb_device *device = dev_list[i];
-			if (usb_match_device(device, vendor, product))
+			libusb_device_descriptor desc = {0};
+			libusb_get_device_descriptor(device, &desc);
+			if (desc.idVendor == vendor && desc.idVendor == product)
 			{
-				found = device;
-				int err = libusb_open(found, &found_handle);
+				int err = libusb_open(device, &found_handle);
 				if (err)
 				{
 					throw USBError(static_cast<libusb_error>(err));

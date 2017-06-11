@@ -104,8 +104,6 @@ namespace ibrcommon
 		static std::map<usb_device_cb *, std::vector<usb_device_cb_registration> > _hotplug_handles;
 	};
 
-	static bool usb_match_device(libusb_device *device, const uint16_t &vendor, const uint16_t &product);
-
 	static const int DEFAULT_INTERFACE = 0;
 }
 

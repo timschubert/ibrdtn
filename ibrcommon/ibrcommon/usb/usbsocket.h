@@ -25,65 +25,47 @@
 #include "usbinterface.h"
 #include "ibrcommon/net/socket.h"
 #include "ibrcommon/net/socketstream.h"
+#include "ibrcommon/Logger.h"
 #include <libusb-1.0/libusb.h>
+#include <unistd.h>
 
 namespace ibrcommon
 {
-	class usbsocket: public basesocket
+	class usbsocket: public datagramsocket
 	{
 	public:
-
-		class transfer
+		class usbinput
 		{
 		public:
-			// TODO to config
-			static const size_t INBUFLEN = 10000;
-
-			class transfer_cb
-			{
-			public:
-				void transfer_completed(transfer *trans);
-			};
-
-			transfer(const char *buf, size_t _buflen, ibrcommon::vaddress &addr, const transfer_cb callback, usbsocket &sock, bool in);
-			~transfer();
-			ibrcommon::Conditional done;
-			const ibrcommon::vaddress &_addr;
-			const bool in;
-			int _transmitted;
-
-			void abort();
-			bool aborted();
-			uint8_t* buf();
-			size_t buflen();
-			transfer_cb& cb();
-			usbsocket& sock();
-
-		private:
-			bool _aborted;
-			transfer_cb _cb;
-			uint8_t *_buf;
-			size_t _buflen;
-			usbsocket &_sock;
+			usbinput(size_t len, int fd);
+			~usbinput();
+			char *_buf;
+			size_t _len;
+			size_t _actual_len;
+			int _fd;
 		};
 
 		const uint8_t ep_in;
 		const uint8_t ep_out;
 		const usbinterface interface;
 
-		usbsocket(const usbinterface &iface, const char &endpoint_in, const char &endpoint_out);
+		usbsocket(const usbinterface &iface, const char &endpoint_in, const char &endpoint_out, size_t buflen);
 		virtual ~usbsocket();
 
 		void up() throw (socket_exception);
 		void down() throw (socket_exception);
 
-		static void prepare_transfer(unsigned char *buf, int buflen, transfer *initiator, libusb_device_handle *handle, unsigned char endpoint,
-				uint32_t stream_id, bool in);
+		static bool prepare_transfer(unsigned char *buf, int buflen, libusb_device_handle *handle, unsigned char endpoint, uint32_t stream_id, usbinput *input);
 
-		virtual void recvfrom(transfer *trans) throw (socket_exception);
-		virtual void sendto(transfer *trans) throw (socket_exception);
+		virtual ssize_t recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw (socket_exception);
+		virtual void sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw (socket_exception);
 
 	private:
+		/**
+		 * this fd is written to if usb can read something
+		 */
+		usbinput _input;
+
 		static void usb_send(struct libusb_device_handle *handle, uint8_t *message, int length, libusb_transfer_cb_fn cb);
 		static void transfer_completed_cb(struct libusb_transfer *transfer);
 	};

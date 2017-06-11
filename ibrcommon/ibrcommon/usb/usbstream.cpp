@@ -23,24 +23,14 @@
 
 namespace ibrcommon
 {
-	static const int INBUFLEN = 10000;
-
 	usbstream::usbstream(usbsocket &sock)
-			: _sock(sock), _in_buf_free(true), out_buf_free_(true), _in_buf_len(0), out_buf_len_(0), _waiting_in(false)
+			: _sock(sock), _in_buf_free(true), out_buf_free_(true), _in_buf_len(0), out_buf_len_(0)
 	{
 	}
 
 	usbstream::~usbstream()
 	{
 	}
-
-	/*void usbstream::event_data_in(char *buffer, size_t length)
-	 {
-	 if (length > 0)
-	 {
-	 (*this) << buffer;
-	 }
-	 } */
 
 	int usbstream::sync()
 	{
@@ -70,15 +60,7 @@ namespace ibrcommon
 		try
 		{
 			vaddress empty;
-			usbsocket::transfer *trans = new usbsocket::transfer(&out_buf_[0], iend - ibegin, empty, *this, _sock, false);
-			_sock.sendto(trans);
-			try
-			{
-				trans->done.wait();
-			} catch (Conditional::ConditionalAbortException &e)
-			{
-				IBRCOMMON_LOGGER_TAG("usbstream::overflow", warning) << "waiting for transfer to complete aborted." << IBRCOMMON_LOGGER_ENDL;
-			}
+			_sock.sendto(&(out_buf_)[0], iend - ibegin, 0, empty);
 
 			/* update the position of the free buffer */
 			char *buffer_begin = iend;
@@ -96,41 +78,19 @@ namespace ibrcommon
 		return std::char_traits<char>::not_eof(c);
 	}
 
-	void usbstream::transfer_completed(usbsocket::transfer *trans)
-	{
-		if (trans->in)
-		{
-			usbsocket &sock = trans->sock();
-			read((char *) (trans->buf()[0]), trans->buflen());
-			_waiting_in = false;
-		}
-		delete trans;
-	}
-
 	std::char_traits<char>::int_type usbstream::underflow()
 	{
+		size_t received = 0;
 		vaddress empty;
 		try
 		{
-			if (!_waiting_in)
-			{
-				_waiting_in = true;
-				usbsocket::transfer *trans = new usbsocket::transfer(&_in_buf[0], _in_buf_len, empty, *this, _sock, true);
-				_sock.recvfrom(trans);
-				try
-				{
-					trans->done.wait();
-				} catch (Conditional::ConditionalAbortException &e)
-				{
-					IBRCOMMON_LOGGER_TAG("usbstream::underflow", warning) << "waiting for transfer to complete aborted." << IBRCOMMON_LOGGER_ENDL;
-				}
-			}
+			received = _sock.recvfrom(&_in_buf[0], _in_buf_len, 0, empty);
 		} catch (USBError &e)
 		{
 			// TODO logging
 			std::cerr << e.what() << std::endl;
 		}
-		setg(&_in_buf[0], &_in_buf[0], &_in_buf[0]);
+		setg(&_in_buf[0], &_in_buf[0], &_in_buf[received]);
 		return std::char_traits<char>::not_eof(_in_buf[0]);
 	}
 }

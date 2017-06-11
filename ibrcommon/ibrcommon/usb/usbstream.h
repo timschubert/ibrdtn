@@ -31,13 +31,11 @@
 
 namespace ibrcommon
 {
-	class usbstream: public std::basic_streambuf<char,std::char_traits<char> >, public std::iostream, public usbsocket::transfer::transfer_cb
+	class usbstream: public std::basic_streambuf<char,std::char_traits<char> >, public std::iostream
 	{
 	public:
 		usbstream(usbsocket &sock);
 		virtual ~usbstream();
-
-		void transfer_completed(usbsocket::transfer *trans);
 
 	protected:
 		virtual int sync();
@@ -56,9 +54,6 @@ namespace ibrcommon
 		std::vector<char> out_;
 
 		usbsocket &_sock;
-		ibrcommon::Conditional in_buf_cond;
-
-		bool _waiting_in;
 	};
 }
 
