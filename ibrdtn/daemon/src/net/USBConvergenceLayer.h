@@ -26,13 +26,12 @@
 #include "core/BundleCore.h"
 #include "core/BundleEvent.h"
 #include "net/ConvergenceLayer.h"
-#include "net/USBHotplugService.h"
-#include <ibrcommon/Exceptions.h>
-#include <ibrcommon/Logger.h>
-#include <ibrcommon/net/vaddress.h>
-#include <ibrcommon/net/vinterface.h>
-#include <ibrcommon/net/usb/usbconnector.h>
-#include <ibrdtn/data/Serializer.h>
+#include "ibrcommon/Exceptions.h"
+#include "ibrcommon/Logger.h"
+#include "ibrcommon/net/vaddress.h"
+#include "ibrcommon/net/vinterface.h"
+#include "ibrcommon/net/usb/usbconnector.h"
+#include "ibrdtn/data/Serializer.h"
 
 using namespace ibrcommon;
 
@@ -44,7 +43,8 @@ namespace dtn
 				public dtn::daemon::IntegratedComponent,
 				public DiscoveryBeaconHandler,
 				public usbconnector::usb_device_cb,
-				public dtn::core::EventReceiver<DiscoveryBeaconEvent>
+				public dtn::core::EventReceiver<DiscoveryBeaconEvent>,
+				public TimerCallback
 		{
 		public:
 			USBConvergenceLayer(usbconnector &connector);
@@ -66,6 +66,7 @@ namespace dtn
 			virtual void interface_lost(usbinterface &iface);
 
 			void raiseEvent(const DiscoveryBeaconEvent &event) throw ();
+			void raiseEvent(const TimeEvent &event) throw ();
 
 			/**
 			 * @see Component::getName()
@@ -78,6 +79,9 @@ namespace dtn
 			virtual void interface_discovered(ibrcommon::usbinterface &iface);
 			virtual void interface_lost(ibrcommon::usbinterface &iface);
 
+
+			size_t timeout(Timer *t);
+
 		protected:
 			void __cancellation() throw ();
 
@@ -89,6 +93,8 @@ namespace dtn
 			usbconnector _con;
 			USBTransferService _usb;
 			dtn::daemon::Configuration::USB _config;
+			Timer _fakedServicesTimer;
+			Mutex _fakedServicesLock;
 			DiscoveryBeacon::service_list _fakedServices;
 			vsocket _vsocket;
 			bool _run;

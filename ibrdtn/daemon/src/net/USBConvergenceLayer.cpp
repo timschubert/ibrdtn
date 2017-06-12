@@ -26,7 +26,7 @@ namespace dtn
 	namespace net
 	{
 		USBConvergenceLayer::USBConvergenceLayer(usbconnector &con)
-				: _con(con), _usb(USBTransferService::getInstance()), dtn::daemon::IndependentComponent(), _run(false)
+				: _con(con), _usb(USBTransferService::getInstance()), dtn::daemon::IndependentComponent(), _run(false), _fakedServicesTimer(this, 1000)
 		{
 		}
 
@@ -183,8 +183,10 @@ namespace dtn
 
 							if (_config.getGateway())
 							{
+								MutexLock l(_fakedServicesLock);
+								_fakedServicesTimer.reset();
 								/* fake all services from neighbor as our own */
-								_fakedServices.insert(_fakedServices.end(), services.begin(), services.end());
+								_fakedServices = services; //.insert(_fakedServices.end(), services.begin(), services.end());
 							}
 
 							if (_config.getProxy())
@@ -203,6 +205,25 @@ namespace dtn
 					tv.tv_usec = 0;
 				}
 			}
+		}
+
+		void USBConvergenceLayer::raiseEvent(const TimeEvent &event) throw ()
+		{
+			switch (event.getAction())
+			{
+			case dtn::core::TIME_SECOND_TICK:
+				break;
+			default:
+				break;
+			}
+		}
+
+		size_t USBConvergenceLayer::timeout(Timer *t)
+		{
+			MutexLock l(_fakedServicesLock);
+			_fakedServices = DiscoveryBeacon::service_list();
+			// TODO -> config
+			return 10000;
 		}
 
 		void USBConvergenceLayer::raiseEvent(const DiscoveryBeaconEvent &event) throw ()
