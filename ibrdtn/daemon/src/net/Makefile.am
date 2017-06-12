@@ -46,13 +46,15 @@ net_SOURCES = 	BundleReceiver.h \
 	P2PDialupEvent.h \
 	P2PDialupEvent.cpp \
 	NativeP2pManager.h \
-	NativeP2pManager.cpp
+	NativeP2pManager.cpp \
+	DiscoveryBeaconEvent.h \
+	DiscoveryBeaconEvent.cpp
 
 if LOWPAN
 net_SOURCES += LOWPANConvergenceLayer.cpp LOWPANConvergenceLayer.h LOWPANConnection.cpp LOWPANConnection.h
 net_SOURCES += LOWPANDatagramService.cpp LOWPANDatagramService.h
 endif
-				
+
 if CURL
 net_SOURCES += HTTPConvergenceLayer.cpp HTTPConvergenceLayer.h
 endif
@@ -68,6 +70,10 @@ endif
 if VMIME
 net_SOURCES += EMailConvergenceLayer.cpp EMailConvergenceLayer.h
 net_SOURCES += EMailSmtpService.cpp EMailSmtpService.h EMailImapService.cpp EMailImapService.h
+endif
+
+if USB
+net_SOURCES += USBConvergenceLayer.h USBConvergenceLayer.cpp USBTransferService.h USBTransferService.cpp
 endif
 
 AM_CPPFLAGS = -I$(top_srcdir)/src $(ibrdtn_CFLAGS) $(CURL_CFLAGS) $(DTNDHT_CFLAGS) $(WIFIP2P_CFLAGS) $(VMIME_CFLAGS) $(GCOV_CFLAGS)

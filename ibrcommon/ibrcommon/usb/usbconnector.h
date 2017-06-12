@@ -100,8 +100,8 @@ namespace ibrcommon
 		libusb_context *_usb_context;
 		bool _cap_hotplug;
 
-		static ibrcommon::Mutex _hotplug_handles_lock;
-		static std::map<usb_device_cb *, std::vector<usb_device_cb_registration> > _hotplug_handles;
+		ibrcommon::Mutex _hotplug_handles_lock;
+		std::map<usb_device_cb *, std::vector<usb_device_cb_registration> > _hotplug_handles;
 	};
 
 	static const int DEFAULT_INTERFACE = 0;

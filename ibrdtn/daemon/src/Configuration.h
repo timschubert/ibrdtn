@@ -68,7 +68,8 @@ namespace dtn
 					NETWORK_DGRAM_UDP = 6,
 					NETWORK_DGRAM_LOWPAN = 7,
 					NETWORK_DGRAM_ETHERNET = 8,
-					NETWORK_EMAIL = 9
+					NETWORK_EMAIL = 9,
+					NETWORK_USB = 10
 				};
 
 				NetConfig(const std::string &name, NetType type);
@@ -177,6 +178,9 @@ namespace dtn
 				int _version;
 				bool _crosslayer;
 
+				/* true if discovery beacon should be made available to discovery proxies */
+				bool _proxy;
+
 			public:
 				bool enabled() const;
 				bool announce() const;
@@ -186,6 +190,7 @@ namespace dtn
 				int port() const;
 				unsigned int interval() const;
 				bool enableCrosslayer() const;
+				bool proxy() const;
 			};
 
 			class Debug : public Configuration::Extension
@@ -951,6 +956,20 @@ namespace dtn
 				size_t getReturningMailChecks() const;
 			};
 
+			class USB : public Configuration::Extension
+			{
+				friend class Configuration;
+			public:
+				bool getProxy();
+				bool getGateway();
+				const std::string& getOwnAddress();
+			protected:
+				USB();
+				virtual ~USB();
+				void load(const ibrcommon::ConfigFile &conf);
+			private:
+			};
+
 			const Configuration::Discovery& getDiscovery() const;
 			const Configuration::Debug& getDebug() const;
 			const Configuration::Logger& getLogger() const;
@@ -961,6 +980,7 @@ namespace dtn
 			const Configuration::DHT& getDHT() const;
 			const Configuration::P2P& getP2P() const;
 			const Configuration::EMail& getEMail() const;
+			const Configuration::USB& getUSB() const;
 
 		private:
 			ibrcommon::ConfigFile _conf;
@@ -974,6 +994,7 @@ namespace dtn
 			Configuration::DHT _dht;
 			Configuration::P2P _p2p;
 			Configuration::EMail _email;
+			Configuration::USB _usb;
 
 			std::string _filename;
 			bool _doapi;

@@ -1,0 +1,63 @@
+/*
+ * USBTransferService.cpp
+ *
+ * Copyright (C) 2017 IBR, TU Braunschweig
+ *
+ * Written-by: Tim Schubert <tim.schubert@tu-bs.de>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
+namespace dtn
+{
+	namespace net
+	{
+		USBTransferService::~USBTransferService()
+		{
+			// TODO
+		}
+
+		USBTransferService& USBTransferService::getInstance() const
+		{
+			static USBTransferService instance;
+			return instance;
+		}
+
+		void USBTransferService::queue(USBTransferService::Task *t)
+		{
+			_tasks.push(t);
+		}
+
+		void USBTransferService::submit(USBTransferService::Task *t)
+		{
+			// TODO
+		}
+
+		void USBTransferService::raiseEvent(const dtn::core::NodeEvent &event) throw()
+		{
+			switch (event.getAction())
+			{
+			case dtn::core::NODE_DATA_ADDED:
+				// TODO
+				break;
+			case dtn::core::NODE_DATA_REMOVED:
+				// TODO
+				break;
+			default:
+				break;
+			}
+		}
+	}
+}
+

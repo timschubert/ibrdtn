@@ -1473,6 +1473,22 @@ namespace dtn
 						}
 #endif
 
+#ifdef HAVE_USB
+						case dtn::daemon::Configuration::NetConfig::NETWORK_USB:
+						{
+							try
+							{
+								_components[RUNLEVEL_NETWORK].push_back( new USBConvergenceLayer(usbconnector()::getInstance()));
+								IBRCOMMON_LOGGER_TAG(NativeDaemon::TAG, info) << "USB Convergence Layer added" << IBRCOMMON_LOGGER_ENDL;
+							}
+							catch(const ibrcommon::Exception &ex)
+							{
+								IBRCOMMON_LOGGER_TAG(NativeDaemon::TAG, error) << "Failed to add USB Convergence Layer: " << ex.what() << IBRCOMMON_LOGGER_ENDL;
+							}
+							break;
+						}
+#endif
+
 						default:
 							break;
 					}

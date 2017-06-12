@@ -184,6 +184,11 @@ namespace dtn
 			return _email;
 		}
 
+		const Configuration::USB& Configuration::getUSB() const
+		{
+			return _usb;
+		}
+
 		Configuration& Configuration::getInstance(bool reset)
 		{
 			static Configuration conf;
@@ -409,6 +414,7 @@ namespace dtn
 			_short = (conf.read<int>("discovery_short", 0) == 1);
 			_version = conf.read<int>("discovery_version", 2);
 			_crosslayer = (conf.read<std::string>("discovery_crosslayer", "no") == "yes");
+			_proxy = (conf.read<std::string>("discovery_proxy", "no") == "yes");
 		}
 
 		void Configuration::Logger::load(const ibrcommon::ConfigFile &conf)
@@ -629,6 +635,11 @@ namespace dtn
 		bool Configuration::Discovery::enableCrosslayer() const
 		{
 			return _crosslayer;
+		}
+
+		bool Configuration::Discovery::proxy() const
+		{
+			return _proxy;
 		}
 
 		Configuration::NetConfig Configuration::getAPIInterface() const
@@ -1586,6 +1597,41 @@ namespace dtn
 		size_t Configuration::EMail::getReturningMailChecks() const
 		{
 			return _returningMailsCheck;
+		}
+
+		Configuration::USB::USB()
+		{
+		}
+
+		Configuration::USB::~USB()
+		{
+		}
+
+		void Configuration::USB::load(const ibrcommon::ConfigFile &conf)
+		{
+			// TODO
+		}
+
+		const std::string& Configuration::USB::getOwnAddress()
+		{
+			// TODO
+			// usb:<bus>.<address>.<serial number>
+			static const std::string host_address = "usb:0.0.0";
+			return host_address;
+		}
+
+		bool Configuration::USB::getProxy()
+		{
+			// TODO
+			static const bool proxy = true;
+			return proxy;
+		}
+
+		bool Configuration::USB::getGateway()
+		{
+			// TODO
+			static const bool gateway = true;
+			return gateway;
 		}
 	}
 }

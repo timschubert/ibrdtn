@@ -384,6 +384,29 @@ ANDROID_AC_BUILD([
 	)
 
 	dnl -----------------------------------------------
+	dnl optional parameter: USB support
+	dnl -----------------------------------------------
+
+	AC_ARG_WITH([usb],
+		AS_HELP_STRING([--without-usb], [Build without usb support]),
+		[
+			with_usb="no"
+			AC_MSG_NOTICE([USB support disabled])
+		], [
+			PKG_CHECK_MODULES([USB], libusb >= 1.0.20 , [
+						   with_usb="yes"
+						   AC_SUBST(USB_CFLAGS)
+						   AC_SUBST(USB_LIBS)
+						   AC_DEFINE(HAVE_USB, [1], ["USB is available"])
+						   AC_CHECK_HEADERS([libusb-1.0/libusb.h])
+					], [
+						with_usb="no"
+						AC_MSG_WARN([USB library not found. USB is disabled.])
+				   	])
+		]
+	)
+
+	dnl -----------------------------------------------
 	dnl check for regex capabilities
 	dnl -----------------------------------------------
 	AC_CHECK_HEADERS([regex.h], [
@@ -406,6 +429,7 @@ AM_CONDITIONAL(REGEX, test x$have_regex = xyes)
 AM_CONDITIONAL(ANDROID, test x$enable_android = xyes)
 AM_CONDITIONAL(WIFIP2P, test x$with_wifi_p2p = xyes)
 AM_CONDITIONAL(VMIME, test x$with_vmime = xyes)
+AM_CONDITIONAL(USB, test x$with_usb = xyes)
 AM_CONDITIONAL(WIN32, test x$enable_win32 = xyes)
 AM_CONDITIONAL(WIN32_NTSERVICE, test x$enable_ntservice = xyes)
 AM_CONDITIONAL(OPENSSL_JPAKE, test x$with_jpake = xyes)

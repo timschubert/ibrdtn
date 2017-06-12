@@ -486,6 +486,11 @@ namespace dtn
 
 								// announce the received beacon
 								agent.onBeaconReceived(beacon);
+
+								if (dtn::daemon::Configuration::getInstance().getDiscovery().proxy())
+								{
+									DiscoveryBeaconEvent::raise(beacon, DISCOVERY_PROXY, sock);
+								}
 							} catch (const dtn::InvalidDataException&) {
 							} catch (const ibrcommon::IOException&) {
 							}

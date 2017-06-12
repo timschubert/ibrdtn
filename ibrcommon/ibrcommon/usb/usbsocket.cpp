@@ -173,4 +173,10 @@ namespace ibrcommon
 			throw socket_exception("Failed to prepare new transfer.");
 		}
 	}
+
+
+	bool usbsocket::operator==(const usbsocket &socket) const
+	{
+		return socket.interface == this->interface;
+	}
 }
