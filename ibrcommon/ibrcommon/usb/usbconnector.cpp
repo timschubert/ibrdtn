@@ -70,7 +70,25 @@ namespace ibrcommon
 		std::stringstream s;
 		s << "usb" << ':' << busnum << ':' << address;
 		std::string iface_name = s.str();
-		usbinterface iface(iface_name, handle, DEFAULT_INTERFACE);
+		libusb_device_descriptor desc = {0};
+		err = libusb_get_device_descriptor(device, &desc);
+		if (err)
+		{
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90)
+				<< libusb_error(err) << IBRCOMMON_LOGGER_ENDL;
+			return -1;
+		}
+
+		unsigned char serial[200];
+		err = libusb_get_string_descriptor_ascii(handle, desc.iSerialNumber, serial, 200);
+		if (err)
+		{
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90)
+				<< libusb_error(err) << IBRCOMMON_LOGGER_ENDL;
+			return -1;
+		}
+		std::stringstream ss; ss << serial;
+		usbinterface iface(iface_name, handle, DEFAULT_INTERFACE, desc.idVendor, desc.idProduct, ss.str());
 
 		switch (event)
 		{

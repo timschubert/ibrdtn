@@ -63,8 +63,11 @@ namespace ibrcommon
 		};
 
 		const int interface_num;
+		const uint16_t vendor;
+		const uint16_t product;
+		const std::string serial;
 
-		usbinterface(std::string &name, libusb_device_handle *device, const int &interface_num);
+		usbinterface(std::string &name, libusb_device_handle *device, const int &interface_num, const uint16_t vendor, const uint16_t product, const std::string serial);
 		virtual ~usbinterface();
 
 		void set_up();

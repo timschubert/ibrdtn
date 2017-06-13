@@ -25,8 +25,37 @@ namespace dtn
 {
 	namespace net
 	{
+		USBConnection::USBConnection(ibrcommon::usbsocket &sock, const dtn::core::Node &node)
+				: _socket(sock), _node(node), _stream(sock)
+		{
+		}
+
+		USBConnection::~USBConnection()
+		{
+		}
+
+		bool USBConnection::match(const dtn::core::Node &node) const
+		{
+			return node == _node;
+		}
+
+		bool USBConnection::match(const dtn::data::EID &destination) const
+		{
+			return _node.getEID().sameHost(destination);
+		}
+
+		bool USBConnection::match(const dtn::core::NodeEvent &evt) const
+		{
+			return match(evt.getNode());
+		}
+
+		usbstream& USBConnection::getStream() const
+		{
+			return _stream;
+		}
+
 		USBConvergenceLayer::USBConvergenceLayer(usbconnector &con)
-				: _con(con), _usb(USBTransferService::getInstance()), dtn::daemon::IndependentComponent(), _run(false), _fakedServicesTimer(this, 1000)
+				: _con(con), _usb(USBTransferService::getInstance()), dtn::daemon::IndependentComponent(), _run(false)
 		{
 		}
 
@@ -83,14 +112,25 @@ namespace dtn
 		{
 			if (!_vsocket.get(iface).empty())
 			{
-				beacon.addService(DiscoveryService(getDiscoveryProtocol(), "usb=" + _config.getOwnAddress()));
-
-				for (auto &fake : _fakedServices)
+				try
 				{
-					beacon.addService(fake);
+					usbinterface &usbiface = dynamic_cast<usbinterface>(iface);
+					beacon.addService(
+							DiscoveryService(getDiscoveryProtocol(),
+									"usb=" + "host-mode" + ";vendor=" + usbiface.vendor + ";product=" + usbiface.product + ";serial=" + usbiface.serial));
+
+					for (auto &fake : _fakedServices)
+					{
+						for (auto &service : fake.second)
+						{
+							beacon.addService(service);
+						}
+					}
+				} catch (std::bad_cast&)
+				{
+
 				}
 			}
-
 		}
 
 		void USBConvergenceLayer::resetStats()
@@ -139,7 +179,10 @@ namespace dtn
 					{
 						usbsocket *sock = dynamic_cast<usbsocket>(fd);
 						char data[1500];
-						vaddress sender = sock->interface.getAddresses();
+						usbinterface iface = sock->interface;
+						stringstream ss;
+						ss << iface.vendor << "." << iface.product << "." << iface.serial;
+						vaddress sender(ss.str(), "");
 						DiscoveryBeacon beacon = agent.obtainBeacon();
 
 						ssize_t len = 0;
@@ -162,31 +205,39 @@ namespace dtn
 							if (beacon.isShort())
 							{
 								/* generate EID */
-								beacon.setEID(dtn::data::EID("usb://[" + sender.address()));
+								beacon.setEID(dtn::data::EID("usb://[" + sender.toString()));
 
 								/* add this CL if list is empty */
-								beacon.addService(dtn::net::DiscoveryService(dtn::core::Node::CONN_USB, "usb=" + sender.address()));
+								beacon.addService(
+										dtn::net::DiscoveryService(dtn::core::Node::CONN_USB,
+												"usb=" + "host-mode" + ";vendor=" + iface.vendor + ";product=" + iface.product + ";serial=" + iface.serial));
 							}
 
 							DiscoveryBeacon::service_list &services = beacon.getServices();
-							for (auto &service : services)
-							{
-								if (service.getParameters().find("usb") != std::string::npos)
-								{
-									/* make shure the address is correct */
-									service.update("ip=" + sender.address() + ";" + service.getParameters());
-								}
-							}
 
+							{
+								MutexLock l(_discoveryLock);
+								_discoveredSockets[beacon.getEID()] = &sock;
+							}
 							/* announce the beacon */
 							agent.onBeaconReceived(beacon);
 
 							if (_config.getGateway())
 							{
 								MutexLock l(_fakedServicesLock);
-								_fakedServicesTimer.reset();
-								/* fake all services from neighbor as our own */
-								_fakedServices = services; //.insert(_fakedServices.end(), services.begin(), services.end());
+								auto &timer = _fakedServicesTimers.find(beacon.getEID());
+								if (timer != _fakedServicesTimers.end())
+								{
+									timer->second->reset();
+								}
+								else
+								{
+									/* set timeout */
+									_fakedServicesTimers[beacon.getEID()] = new Timer(1000);
+
+									/* copy services */
+									_fakedServices[beacon.getEID()] = services;
+								}
 							}
 
 							if (_config.getProxy())
@@ -221,9 +272,26 @@ namespace dtn
 		size_t USBConvergenceLayer::timeout(Timer *t)
 		{
 			MutexLock l(_fakedServicesLock);
-			_fakedServices = DiscoveryBeacon::service_list();
-			// TODO -> config
-			return 10000;
+
+			/* find timer */
+			for (auto &p : _fakedServicesTimers)
+			{
+				if (p.second == t)
+				{
+					/* delete expired timer */
+					delete p.second;
+
+					/* remove expired EID from faked services */
+					_fakedServices.erase(p.first);
+					_fakedServicesTimers.erase(p.first);
+
+					/* stop timer */
+					throw ibrcommon::Timer::StopTimerException();
+				}
+			}
+
+			/* else error occurred, immediately expire the timer */
+			return 0;
 		}
 
 		void USBConvergenceLayer::raiseEvent(const DiscoveryBeaconEvent &event) throw ()
@@ -268,6 +336,34 @@ namespace dtn
 			}
 		}
 
+		void USBConvergenceLayer::raiseEvent(const NodeEvent &event) throw ()
+		{
+			Node &node = event.getNode();
+			switch (event.getAction())
+			{
+			case NODE_DATA_ADDED:
+				if (node.has(Node::CONN_USB))
+				{
+					MutexLock l(_discoveryLock);
+					auto &found = _discoveredSockets[node.getEID()];
+					if (found != _discoveredSockets.end() && found != NULL)
+					{
+						MutexLock l(_connectionsLock);
+
+						USBConnection con(found, node);
+						_connections.push_back(con);
+					}
+				}
+				break;
+			case NODE_DATA_REMOVED:
+			{
+				MutexLock l(_discoveryLock);
+				_discoveredSockets[node.getEID()] = NULL;
+			}
+				break;
+			}
+		}
+
 		void USBConvergenceLayer::interface_lost(ibrcommon::usbinterface &iface)
 		{
 			dtn::net::DiscoveryAgent &agent = dtn::core::BundleCore::getInstance().getDiscoveryAgent();
@@ -284,6 +380,20 @@ namespace dtn
 					break;
 				}
 			}
+		}
+
+		std::list<USBConnection> USBConvergenceLayer::getConnections(const Node &node) const
+		{
+			std::list<USBConnection> cons;
+			MutexLock l(_connectionsLock);
+			for (auto &con : _connections)
+			{
+				if (con.match(node))
+				{
+					cons.push_back(con);
+				}
+			}
+			return cons;
 		}
 	}
 }

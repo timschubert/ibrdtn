@@ -223,6 +223,9 @@ namespace dtn
 
 			case Node::CONN_EMAIL:
 				return "EMAIL";
+
+			case Node::CONN_USB:
+				return "USB";
 			}
 
 			return "unknown";
@@ -254,6 +257,8 @@ namespace dtn
 				return Node::CONN_P2P_BT;
 			} else if (protocol == "unsupported") {
 				return Node::CONN_UNSUPPORTED;
+			} else if (protocol == "USB") {
+				return Node::CONN_USB;
 			}
 
 			return Node::CONN_UNDEFINED;

@@ -22,17 +22,16 @@
 #ifndef IBRDTN_DAEMON_SRC_NET_USBTRANSFERSERVICE_H_
 #define IBRDTN_DAEMON_SRC_NET_USBTRANSFERSERVICE_H_
 
-#include <sstream>
-#include "net/DatagramService.h"
 #include "Logger.h"
+#include "ibrcommon/usb/usbstream.h">
+#include <sstream>
+#include <map>
 
 namespace dtn
 {
 	namespace net
 	{
-		class USBTransferService
-			: public ibrcommon::JoinableThread,
-			  public dtn::core::EventReceiver<dtn::core::NodeEvent>
+		class USBTransferService : public ibrcommon::JoinableThread
 		{
 		public:
 			class Task
@@ -42,6 +41,7 @@ namespace dtn
 
 				const dtn::core::Node node() const;
 				const dtn::net::BundleTransfer transfer() const;
+
 			private:
 				const dtn::core::Node _recipient;
 				const dtn::net::BundleTransfer _transfer;
@@ -50,20 +50,45 @@ namespace dtn
 			void queue(Task *t);
 			void submit(Task *t);
 
-			static USBTransferService& getInstance() const;
+			static USBTransferService &getInstance() const;
 			USBTransferService(USBTransferService const &) = delete;
 			void operator=(USBTransferService const &) = delete;
 
 			virtual ~USBTransferService();
 
-			void run() throw ();
-			void __cancellation() throw ();
+			void run() throw();
+			void __cancellation() throw();
 			void raiseEvent(const dtn::core::NodeEvent &event) throw();
 
 		private:
+			/**
+			 * configuration for USB convergence layer
+			 */
+			daemon::Configuration::USB &_config;
+
+			/**
+			 * USB convergence layer
+			 */
+			dtn::net::USBConvergenceLayer &_usb;
+			/**
+			 * Tasks to be processed
+			 */
 			ibrcommon::Queue<Task *> _tasks;
 
-			USBTransferService();
+			/**
+			 * Stores the bundle storage of the daemon
+			 */
+			dtn::storage::BundleStorage &_storage;
+
+			/**
+			 * false if service is to be shutdown
+			 */
+			bool _run;
+
+			/**
+			 * Constructor
+			 */
+			USBTransferService(USBConvergenceLayer &usbLayer);
 		};
 	}
 }

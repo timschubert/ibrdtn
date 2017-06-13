@@ -25,13 +25,13 @@
 #include "Component.h"
 #include "core/BundleCore.h"
 #include "core/BundleEvent.h"
-#include "net/ConvergenceLayer.h"
 #include "ibrcommon/Exceptions.h"
 #include "ibrcommon/Logger.h"
+#include "ibrcommon/net/usb/usbconnector.h"
 #include "ibrcommon/net/vaddress.h"
 #include "ibrcommon/net/vinterface.h"
-#include "ibrcommon/net/usb/usbconnector.h"
 #include "ibrdtn/data/Serializer.h"
+#include "net/ConvergenceLayer.h"
 
 using namespace ibrcommon;
 
@@ -39,12 +39,30 @@ namespace dtn
 {
 	namespace net
 	{
+		class USBConnection
+		{
+		public:
+			USBConnection(ibrcommon::usbsocket &sock, const dtn::core::Node &node);
+
+			bool match(const dtn::core::Node &node) const;
+			bool match(const dtn::data::EID &destination) const;
+			bool match(const dtn::core::NodeEvent &evt) const;
+
+			usbstream& getStream() const;
+
+		private:
+			usbsocket &_socket;
+			usbstream &_stream;
+			dtn::core::Node &_node;
+		};
+
 		class USBConvergenceLayer: public ConvergenceLayer,
 				public dtn::daemon::IntegratedComponent,
 				public DiscoveryBeaconHandler,
 				public usbconnector::usb_device_cb,
 				public dtn::core::EventReceiver<DiscoveryBeaconEvent>,
-				public TimerCallback
+				public TimerCallback,
+				public dtn::core::EventReceiver<dtn::core::NodeEvent>
 		{
 		public:
 			USBConvergenceLayer(usbconnector &connector);
@@ -67,6 +85,7 @@ namespace dtn
 
 			void raiseEvent(const DiscoveryBeaconEvent &event) throw ();
 			void raiseEvent(const TimeEvent &event) throw ();
+			void raiseEvent(const NodeEvent &event) throw ();
 
 			/**
 			 * @see Component::getName()
@@ -79,8 +98,19 @@ namespace dtn
 			virtual void interface_discovered(ibrcommon::usbinterface &iface);
 			virtual void interface_lost(ibrcommon::usbinterface &iface);
 
-
+			/**
+			 * Reset timer and faked services for timer that reached timeout
+			 */
 			size_t timeout(Timer *t);
+
+			/**
+			 * Fetches a list of prioritized USBConnection to a Node.
+			 *
+			 * @param node The fetch the connections to a Node
+			 *
+			 * @return A sorted list of USBConnections to the Node
+			 */
+			std::list<USBConnection> getConnections(const Node &node) const;
 
 		protected:
 			void __cancellation() throw ();
@@ -93,10 +123,40 @@ namespace dtn
 			usbconnector _con;
 			USBTransferService _usb;
 			dtn::daemon::Configuration::USB _config;
-			Timer _fakedServicesTimer;
+
+			/**
+			 * for locking faked services
+			 */
 			Mutex _fakedServicesLock;
-			DiscoveryBeacon::service_list _fakedServices;
+			/**
+			 * timers for validity of faked services
+			 */
+			std::map<dtn::data::EID, Timer *> _fakedServicesTimers;
+
+			/**
+			 * faked services
+			 */
+			std::map<dtn::data::EID, DiscoveryBeacon::service_list> _fakedServices;
+
+			/**
+			 * connected to all known sockets
+			 * used for select
+			 */
 			vsocket _vsocket;
+
+			/**
+			 * Stores sockets for neighbors
+			 */
+			std::vector<USBConnection> _connections;
+			Mutex _connectionsLock;
+
+			/**
+			 * Maps discovere EIDs to usbsockets
+			 * TODO
+			 */
+			std::map<dtn::data::EID, usbsocket *> _discoveredSockets;
+			Mutex _discoveryLock;
+
 			bool _run;
 		};
 	}

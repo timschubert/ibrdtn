@@ -23,8 +23,8 @@
 
 namespace ibrcommon
 {
-	usbinterface::usbinterface(std::string &name, libusb_device_handle *device, const int &num)
-			: vinterface(name), interface_num(num), _device(device)
+	usbinterface::usbinterface(std::string &name, libusb_device_handle *device, const int &num, const uint16_t _vendor, const uint16_t _product, const std::string _serial)
+			: vinterface(name), interface_num(num), _device(device), vendor(_vendor), product(_product), serial(_serial)
 	{
 	}
 
