@@ -81,6 +81,10 @@ namespace dtn
 				ibrcommon::vinterface iface;
 				int mtu;
 				int port;
+
+				int vendor;
+				int product;
+				int interface_num;
 			};
 
 			class ParameterNotSetException : ibrcommon::Exception
@@ -968,6 +972,9 @@ namespace dtn
 				virtual ~USB();
 				void load(const ibrcommon::ConfigFile &conf);
 			private:
+				bool _proxy;
+				bool _gateway;
+				std::string _address;
 			};
 
 			const Configuration::Discovery& getDiscovery() const;

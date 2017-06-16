@@ -22,7 +22,7 @@
 #ifndef CONVERGENCELAYER_H_
 #define CONVERGENCELAYER_H_
 
-#include "net/BundleTransfer.h"
+#include "BundleTransfer.h"
 #include "core/Node.h"
 
 #include <ibrdtn/data/BundleID.h>

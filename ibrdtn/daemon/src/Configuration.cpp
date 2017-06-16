@@ -405,6 +405,7 @@ namespace dtn
 			_dht.load(_conf);
 			_p2p.load(_conf);
 			_email.load(_conf);
+			_usb.load(_conf);
 		}
 
 		void Configuration::Discovery::load(const ibrcommon::ConfigFile &conf)
@@ -854,6 +855,10 @@ namespace dtn
 					const std::string key_path = "net_" + netname + "_path";
 					const std::string key_mtu = "net_" + netname + "_mtu";
 
+					const std::string key_vendor = "net_" + netname + "_vendor";
+					const std::string key_product = "net_" + netname + "_product";
+					const std::string key_interface_num = "net_" + netname + "_interface_num";
+
 					const std::string type_name = conf.read<string>(key_type, "tcp");
 					Configuration::NetConfig::NetType type = Configuration::NetConfig::NETWORK_UNKNOWN;
 
@@ -884,6 +889,14 @@ namespace dtn
 							nc.url = conf.read<std::string>(key_path, "");
 							break;
 						}
+
+					case Configuration::NetConfig::NETWORK_DGRAM_USB:
+					{
+						nc.vendor = conf.read<int>(key_vendor, 0x483);
+						nc.product = conf.read<int>(key_product, 0x1df8 );
+						nc.interface_num = conf.read<int>(key_interface_num, 11);
+						break;
+					}
 
 						default:
 						{
@@ -1611,7 +1624,9 @@ namespace dtn
 
 		void Configuration::USB::load(const ibrcommon::ConfigFile &conf)
 		{
-			// TODO
+			_proxy = (conf.read<std::string>("usb_proxy", "no") == "yes");
+			_gateway = (conf.read<std::string>("usb_gateway", "no") == "yes");
+			_address = (conf.read<std::string>("usb_address", "no") == "yes");
 		}
 
 		const std::string& Configuration::USB::getOwnAddress() const
