@@ -69,7 +69,7 @@ namespace dtn
 					NETWORK_DGRAM_LOWPAN = 7,
 					NETWORK_DGRAM_ETHERNET = 8,
 					NETWORK_EMAIL = 9,
-					NETWORK_USB = 10
+					NETWORK_DGRAM_USB = 10
 				};
 
 				NetConfig(const std::string &name, NetType type);
@@ -960,9 +960,9 @@ namespace dtn
 			{
 				friend class Configuration;
 			public:
-				bool getProxy();
-				bool getGateway();
-				const std::string& getOwnAddress();
+				const bool getProxy() const;
+				const bool getGateway() const;
+				const std::string& getOwnAddress() const;
 			protected:
 				USB();
 				virtual ~USB();

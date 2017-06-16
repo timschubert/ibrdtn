@@ -175,8 +175,13 @@ namespace ibrcommon
 	}
 
 
-	bool usbsocket::operator==(const usbsocket &socket) const
+	bool usbsocket::operator==(const usbsocket& rhs)
 	{
-		return socket.interface == this->interface;
+		return this->interface == rhs.interface;
+	}
+
+	bool usbsocket::operator!=(const usbsocket& rhs)
+	{
+		return !(*this== rhs);
 	}
 }

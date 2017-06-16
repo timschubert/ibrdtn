@@ -31,7 +31,7 @@
 
 namespace ibrcommon
 {
-	class usbstream: public std::basic_streambuf<char,std::char_traits<char> >, public std::iostream
+	class usbstream : public std::basic_streambuf<char, std::char_traits<char> >, public std::iostream
 	{
 	public:
 		usbstream(usbsocket &sock);

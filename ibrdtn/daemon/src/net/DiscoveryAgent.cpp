@@ -214,10 +214,10 @@ namespace dtn
 
 					n.add(Node::URI(Node::NODE_DISCOVERED, Node::CONN_EMAIL, s.getParameters(), to_value_mailcl, -80));
 				}
-				else if (p == dtn::core::Node::CONN_USB)
+				else if (p == dtn::core::Node::CONN_DGRAM_USB)
 				{
 					// add USB parameters to node
-					n.add(Node::URI(Node::NODE_DISCOVERED, Node::CONN_USB, s.getParameters(), to_value));
+					n.add(Node::URI(Node::NODE_DISCOVERED, Node::CONN_DGRAM_USB, s.getParameters(), to_value));
 				}
 				else if ((p == dtn::core::Node::CONN_UNSUPPORTED) || (p == dtn::core::Node::CONN_UNDEFINED))
 				{

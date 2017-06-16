@@ -100,6 +100,10 @@
 #include "net/EMailConvergenceLayer.h"
 #endif
 
+#ifdef IBRCOMMON_SUPPORT_USB
+#include "net/USBConvergenceLayer.h"
+#endif
+
 #include <ibrdtn/ibrdtn.h>
 #ifdef IBRDTN_SUPPORT_BSP
 #include "security/SecurityManager.h"
@@ -1473,12 +1477,12 @@ namespace dtn
 						}
 #endif
 
-#ifdef HAVE_USB
-						case dtn::daemon::Configuration::NetConfig::NETWORK_USB:
+#ifdef IBRCOMMON_SUPPORT_USB
+						case dtn::daemon::Configuration::NetConfig::NETWORK_DGRAM_USB:
 						{
 							try
 							{
-								_components[RUNLEVEL_NETWORK].push_back( new USBConvergenceLayer(usbconnector()::getInstance()));
+								_components[RUNLEVEL_NETWORK].push_back(new USBConvergenceLayer(usbconnector::get_instance()));
 								IBRCOMMON_LOGGER_TAG(NativeDaemon::TAG, info) << "USB Convergence Layer added" << IBRCOMMON_LOGGER_ENDL;
 							}
 							catch(const ibrcommon::Exception &ex)

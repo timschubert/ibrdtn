@@ -22,8 +22,14 @@
 #ifndef IBRDTN_DAEMON_SRC_NET_USBTRANSFERSERVICE_H_
 #define IBRDTN_DAEMON_SRC_NET_USBTRANSFERSERVICE_H_
 
-#include "Logger.h"
-#include "ibrcommon/usb/usbstream.h">
+#include "ibrcommon/Logger.h"
+#include "ibrcommon/usb/usbstream.h"
+#include "Configuration.h"
+#include "BundleTransfer.h"
+#include "USBConvergenceLayer.h"
+#include "DiscoveryService.h"
+#include "storage/BundleStorage.h"
+#include "core/NodeEvent.h"
 #include <sstream>
 #include <map>
 
@@ -31,28 +37,35 @@ namespace dtn
 {
 	namespace net
 	{
+		class USBConvergenceLayer;
+
 		class USBTransferService : public ibrcommon::JoinableThread
 		{
 		public:
 			class Task
 			{
 			public:
-				Task(const dtn::core::Node &recipient, const dtn::net::BundleTransfer &transfer);
+				Task(const dtn::core::Node &recipient, const dtn::net::BundleTransfer &transfer, const uint8_t flags);
 
 				const dtn::core::Node node() const;
 				const dtn::net::BundleTransfer transfer() const;
+				const uint8_t flags() const;
+				const uint8_t sequence_number() const;
 
 			private:
 				const dtn::core::Node _recipient;
 				const dtn::net::BundleTransfer _transfer;
+				const uint8_t _flags;
+				uint8_t _this_sequence_number;
 			};
 
 			void queue(Task *t);
 			void submit(Task *t);
 
-			static USBTransferService &getInstance() const;
-			USBTransferService(USBTransferService const &) = delete;
-			void operator=(USBTransferService const &) = delete;
+			//static USBTransferService &getInstance(USBConvergenceLayer &clayer);
+			//USBTransferService(USBTransferService const &) = delete;
+			//void operator=(USBTransferService const &) = delete;
+			USBTransferService(USBConvergenceLayer &usbLayer);
 
 			virtual ~USBTransferService();
 
@@ -64,7 +77,7 @@ namespace dtn
 			/**
 			 * configuration for USB convergence layer
 			 */
-			daemon::Configuration::USB &_config;
+			const daemon::Configuration::USB &_config;
 
 			/**
 			 * USB convergence layer
@@ -88,7 +101,6 @@ namespace dtn
 			/**
 			 * Constructor
 			 */
-			USBTransferService(USBConvergenceLayer &usbLayer);
 		};
 	}
 }

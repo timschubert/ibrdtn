@@ -24,7 +24,12 @@
 namespace ibrcommon
 {
 	usbstream::usbstream(usbsocket &sock)
-			: _sock(sock), _in_buf_free(true), out_buf_free_(true), _in_buf_len(0), out_buf_len_(0)
+			: std::iostream(this),
+			  _sock(sock),
+			  _in_buf_free(true),
+			  out_buf_free_(true),
+			  _in_buf_len(0),
+			  out_buf_len_(0)
 	{
 	}
 

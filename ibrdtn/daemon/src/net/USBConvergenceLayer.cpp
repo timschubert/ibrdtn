@@ -25,8 +25,8 @@ namespace dtn
 {
 	namespace net
 	{
-		USBConnection::USBConnection(ibrcommon::usbsocket &sock, const dtn::core::Node &node)
-				: _socket(sock), _node(node), _stream(sock)
+		USBConnection::USBConnection(ibrcommon::usbsocket *sock, const dtn::core::Node &node)
+				: _socket(sock), _node(node), _stream(*sock)
 		{
 		}
 
@@ -49,44 +49,57 @@ namespace dtn
 			return match(evt.getNode());
 		}
 
-		usbstream& USBConnection::getStream() const
+		usbstream& USBConnection::getStream()
 		{
 			return _stream;
 		}
 
 		USBConvergenceLayer::USBConvergenceLayer(usbconnector &con)
-				: _con(con), _usb(USBTransferService::getInstance()), dtn::daemon::IndependentComponent(), _run(false)
+				: dtn::daemon::IntegratedComponent(), _run(false), _con(con), _config(daemon::Configuration::getInstance().getUSB())
 		{
+			_usb = new USBTransferService(*this);
+		}
+
+		USBConvergenceLayer::~USBConvergenceLayer()
+		{
+			delete _usb;
+			for (auto e : _connections)
+			{
+				delete e;
+			}
 		}
 
 		dtn::core::Node::Protocol USBConvergenceLayer::getDiscoveryProtocol() const
 		{
-			return dtn::core::Node::CONN_USB;
+			return dtn::core::Node::CONN_DGRAM_USB;
 		}
 
 		void USBConvergenceLayer::queue(const dtn::core::Node &n, const dtn::net::BundleTransfer &job)
 		{
 			/* check if destination supports USB convergence layer */
-			const std::list<dtn::core::Node::URI> uri_list = n.get(dtn::core::Node::CONN_USB);
+			const std::list<dtn::core::Node::URI> uri_list = n.get(dtn::core::Node::CONN_DGRAM_USB);
 			if (uri_list.empty())
 			{
 				dtn::net::TransferAbortedEvent::raise(n.getEID(), job.getBundle(), dtn::net::TransferAbortedEvent::REASON_UNDEFINED);
 				return;
 			}
 			/* prepare a new transfer task */
-			USBTransferService::Task *task = new USBTransferService::Task(n, job);
+			USBTransferService::Task *task = new USBTransferService::Task(n, job, 0);
 
-			_usb.queue(task);
+			_usb->queue(task);
 		}
 
 		void USBConvergenceLayer::onAdvertiseBeacon(const ibrcommon::vinterface &iface, DiscoveryBeacon &beacon) throw (NoServiceHereException)
 		{
 			/* broadcast beacon over USB */
 			std::stringstream ss;
-			/* "header", ASCII "1" for beacon, "0" for Bundle */
-			ss << "1" << beacon;
+
+			/* prepend header */
+			uint8_t header = USBConvergenceLayerType::DISCOVERY;
+
+			ss << header << beacon;
 			std::string datastr = ss.str();
-			char *data = datastr.c_str();
+			const char *data = datastr.c_str();
 			vaddress empty;
 			for (auto &s : _vsocket.getAll())
 			{
@@ -114,10 +127,11 @@ namespace dtn
 			{
 				try
 				{
-					usbinterface &usbiface = dynamic_cast<usbinterface>(iface);
-					beacon.addService(
-							DiscoveryService(getDiscoveryProtocol(),
-									"usb=" + "host-mode" + ";vendor=" + usbiface.vendor + ";product=" + usbiface.product + ";serial=" + usbiface.serial));
+					const usbinterface &usbiface = dynamic_cast<const usbinterface&>(iface);
+					std::stringstream ss;
+					ss << "usb=" << "host-mode" << ";vendor=" << usbiface.vendor << ";product=" << usbiface.product << ";serial=" << usbiface.serial;
+					DiscoveryService srv("usb", ss.str());
+					beacon.addService(srv);
 
 					for (auto &fake : _fakedServices)
 					{
@@ -177,13 +191,12 @@ namespace dtn
 					_vsocket.select(&fds, NULL, NULL, &tv);
 					for (auto &fd : fds)
 					{
-						usbsocket *sock = dynamic_cast<usbsocket>(fd);
+						usbsocket *sock = dynamic_cast<usbsocket *>(fd);
 						char data[1500];
 						usbinterface iface = sock->interface;
 						stringstream ss;
 						ss << iface.vendor << "." << iface.product << "." << iface.serial;
 						vaddress sender(ss.str(), "");
-						DiscoveryBeacon beacon = agent.obtainBeacon();
 
 						ssize_t len = 0;
 						try
@@ -195,55 +208,48 @@ namespace dtn
 							continue;
 						}
 
-						stringstream ss;
-						ss.write(data, len);
+						stringstream ss1;
+						ss1.write(data, len);
 
 						try
 						{
-							ss >> beacon;
+							/* parse header */
+							uint8_t header = 0;
+							ss >> header;
 
-							if (beacon.isShort())
-							{
-								/* generate EID */
-								beacon.setEID(dtn::data::EID("usb://[" + sender.toString()));
+							/* find header and parse */
+							const int flags = (header & USBConvergenceLayerMask::FLAGS);
+							const int seqnr = (header & USBConvergenceLayerMask::SEQNO) >> 2;
 
-								/* add this CL if list is empty */
-								beacon.addService(
-										dtn::net::DiscoveryService(dtn::core::Node::CONN_USB,
-												"usb=" + "host-mode" + ";vendor=" + iface.vendor + ";product=" + iface.product + ";serial=" + iface.serial));
+							DiscoveryBeacon beacon = agent.obtainBeacon();
+
+							switch (header & USBConvergenceLayerMask::TYPE) {
+								case USBConvergenceLayerType::DATA:
+								IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", info) << "Incoming data frame (seqnr = " << seqnr << ") from " << iface.interface_num << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
+								// TODO submit bundle event
+								break;
+
+								case USBConvergenceLayerType::DISCOVERY:
+								IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", info) << "Incoming discovery (seqnr = " << seqnr << ") from " << iface.interface_num << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
+								ss >> beacon;
+								handle_discovery(beacon, sock);
+								break;
+
+								case USBConvergenceLayerType::ACK:
+								IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", info) << "Incoming acknowledgment (seqnr = " << seqnr << ") from " << iface.interface_num << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
+								// TODO
+								break;
+
+								case USBConvergenceLayerType::NACK:
+								IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", info) << "Incoming negative acknowledgment (seqnr = " << seqnr << ") from " << iface.interface_num << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
+								// TODO
+								break;
+
+								default:
+								IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", warning) << "Incoming data not recognized (seqnr = " << seqnr << ") from " << iface.interface_num << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
+								break;
 							}
 
-							DiscoveryBeacon::service_list &services = beacon.getServices();
-
-							{
-								MutexLock l(_discoveryLock);
-								_discoveredSockets[beacon.getEID()] = &sock;
-							}
-							/* announce the beacon */
-							agent.onBeaconReceived(beacon);
-
-							if (_config.getGateway())
-							{
-								MutexLock l(_fakedServicesLock);
-								auto &timer = _fakedServicesTimers.find(beacon.getEID());
-								if (timer != _fakedServicesTimers.end())
-								{
-									timer->second->reset();
-								}
-								else
-								{
-									/* set timeout */
-									_fakedServicesTimers[beacon.getEID()] = new Timer(1000);
-
-									/* copy services */
-									_fakedServices[beacon.getEID()] = services;
-								}
-							}
-
-							if (_config.getProxy())
-							{
-								DiscoveryBeaconEvent::raise(beacon, EventDiscoveryBeaconAction::DISCOVERY_PROXY, *sock);
-							}
 						} catch (const dtn::InvalidDataException&)
 						{
 						} catch (const ibrcommon::IOException&)
@@ -255,6 +261,53 @@ namespace dtn
 					tv.tv_sec = 1;
 					tv.tv_usec = 0;
 				}
+			}
+		}
+
+		void USBConvergenceLayer::handle_discovery(DiscoveryBeacon &beacon, usbsocket *sock)
+		{
+			usbinterface iface = sock->interface;
+			if (beacon.isShort()) {
+				/* generate EID */
+				stringstream ss;
+				ss << iface.vendor;
+				ss << iface.product;
+				ss << iface.interface_num;
+				beacon.setEID(dtn::data::EID("usb://[" + ss.str()));
+
+				/* add this CL if list is empty */
+				ss.flush();
+				ss << "usb=" << "host-mode" << ";vendor=" << iface.vendor << ";product=" << iface.product << ";serial=" << iface.serial;
+				beacon.addService(dtn::net::DiscoveryService(dtn::core::Node::CONN_DGRAM_USB, ss.str()));
+			}
+
+			DiscoveryBeacon::service_list &services = beacon.getServices();
+
+			{
+				MutexLock l(_discoveryLock);
+				_discoveredSockets[beacon.getEID()] = sock;
+			}
+			/* announce the beacon */
+			dtn::net::DiscoveryAgent &agent = dtn::core::BundleCore::getInstance().getDiscoveryAgent();
+			agent.onBeaconReceived(beacon);
+
+			if (_config.getGateway()) {
+				MutexLock l(_fakedServicesLock);
+				const auto &timer = _fakedServicesTimers.find(beacon.getEID());
+				if (timer != _fakedServicesTimers.end()) {
+					timer->second->reset();
+				}
+				else {
+					/* set timeout */
+					_fakedServicesTimers[beacon.getEID()] = new Timer(*this, 1000);
+
+					/* copy services */
+					_fakedServices[beacon.getEID()] = services;
+				}
+			}
+
+			if (_config.getProxy()) {
+				DiscoveryBeaconEvent::raise(beacon, EventDiscoveryBeaconAction::DISCOVERY_PROXY, *sock);
 			}
 		}
 
@@ -306,11 +359,18 @@ namespace dtn
 					std::string data = ss.str();
 					for (auto &s : _vsocket.getAll())
 					{
+						try
+						{
 						usbsocket *sock = dynamic_cast<usbsocket *>(s);
-						if (*sock != event.getSender())
+						if (*sock != dynamic_cast<const usbsocket&>(event.getSender()))
 						{
 							vaddress empty;
 							sock->sendto(data.c_str(), data.size(), 0, empty);
+						}
+						}
+						catch (std::bad_cast&)
+						{
+							break;
 						}
 					}
 				}
@@ -325,7 +385,8 @@ namespace dtn
 			dtn::net::DiscoveryAgent &agent = dtn::core::BundleCore::getInstance().getDiscoveryAgent();
 			agent.registerService(iface, this);
 
-			usbsocket *sock = new usbsocket(iface);
+			// TODO to config
+			usbsocket *sock = new usbsocket(iface, 1, 0, 1000);
 			try
 			{
 				sock->up();
@@ -338,19 +399,19 @@ namespace dtn
 
 		void USBConvergenceLayer::raiseEvent(const NodeEvent &event) throw ()
 		{
-			Node &node = event.getNode();
+			const Node &node = event.getNode();
 			switch (event.getAction())
 			{
 			case NODE_DATA_ADDED:
-				if (node.has(Node::CONN_USB))
+				if (node.has(Node::CONN_DGRAM_USB))
 				{
 					MutexLock l(_discoveryLock);
-					auto &found = _discoveredSockets[node.getEID()];
-					if (found != _discoveredSockets.end() && found != NULL)
+					const auto &found = _discoveredSockets.find(node.getEID());
+					if (found != _discoveredSockets.end() && found->second != NULL)
 					{
 						MutexLock l(_connectionsLock);
 
-						USBConnection con(found, node);
+						USBConnection *con = new USBConnection(found->second, node);
 						_connections.push_back(con);
 					}
 				}
@@ -382,18 +443,24 @@ namespace dtn
 			}
 		}
 
-		std::list<USBConnection> USBConvergenceLayer::getConnections(const Node &node) const
+		std::list<USBConnection*> USBConvergenceLayer::getConnections(const Node &node)
 		{
-			std::list<USBConnection> cons;
-			MutexLock l(_connectionsLock);
-			for (auto &con : _connections)
+			std::list<USBConnection*> cons;
+			ibrcommon::MutexLock l(_connectionsLock);
+			for (auto con : _connections)
 			{
-				if (con.match(node))
+				if (con->match(node))
 				{
 					cons.push_back(con);
 				}
 			}
 			return cons;
+		}
+
+
+		const std::string USBConvergenceLayer::getName() const
+		{
+			return "USBConvergenceLayer";
 		}
 	}
 }

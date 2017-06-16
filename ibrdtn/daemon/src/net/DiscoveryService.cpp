@@ -109,6 +109,9 @@ namespace dtn
 			else if (tag == "dgram:lowpan") {
 				return dtn::core::Node::CONN_DGRAM_LOWPAN;
 			}
+			else if (tag == "dgram:usb") {
+				return dtn::core::Node::CONN_DGRAM_USB;
+			}
 			else if (tag == "p2p:wifi") {
 				return dtn::core::Node::CONN_P2P_WIFI;
 			}
@@ -158,6 +161,9 @@ namespace dtn
 
 			case dtn::core::Node::CONN_DGRAM_LOWPAN:
 				return "dgram:lowpan";
+
+			case dtn::core::Node::CONN_DGRAM_USB:
+				return "dgram:usb";
 
 			case dtn::core::Node::CONN_P2P_WIFI:
 				return "p2p:wifi";

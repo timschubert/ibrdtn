@@ -84,7 +84,7 @@ namespace dtn
 		{}
 
 		Configuration::Discovery::Discovery()
-		 : _enabled(true), _interval(5), _announce(true), _short(false), _version(2), _crosslayer(false) {}
+		 : _enabled(true), _interval(5), _announce(true), _short(false), _version(2), _crosslayer(false), _proxy(false) {}
 
 		Configuration::Debug::Debug()
 		 : _enabled(false), _quiet(false), _level(0), _profiling(false) {}
@@ -732,6 +732,7 @@ namespace dtn
 				if (protocol == "dgram:udp") p = Node::CONN_DGRAM_UDP;
 				if (protocol == "dgram:ethernet") p = Node::CONN_DGRAM_ETHERNET;
 				if (protocol == "dgram:lowpan") p = Node::CONN_DGRAM_LOWPAN;
+				if (protocol == "dgram:usb") p = Node::CONN_DGRAM_USB;
 				if (protocol == "email") {
 					p = Node::CONN_EMAIL;
 					ss.clear();
@@ -862,6 +863,7 @@ namespace dtn
 					if (type_name == "lowpan") type = Configuration::NetConfig::NETWORK_LOWPAN;
 					if (type_name == "file") type = Configuration::NetConfig::NETWORK_FILE;
 					if (type_name == "dgram:udp") type = Configuration::NetConfig::NETWORK_DGRAM_UDP;
+					if (type_name == "dgram:usb") type = Configuration::NetConfig::NETWORK_DGRAM_USB;
 					if (type_name == "dgram:lowpan") type = Configuration::NetConfig::NETWORK_DGRAM_LOWPAN;
 					if (type_name == "dgram:ethernet") type = Configuration::NetConfig::NETWORK_DGRAM_ETHERNET;
 					if (type_name == "email") type = Configuration::NetConfig::NETWORK_EMAIL;
@@ -1612,7 +1614,7 @@ namespace dtn
 			// TODO
 		}
 
-		const std::string& Configuration::USB::getOwnAddress()
+		const std::string& Configuration::USB::getOwnAddress() const
 		{
 			// TODO
 			// usb:<bus>.<address>.<serial number>
@@ -1620,14 +1622,14 @@ namespace dtn
 			return host_address;
 		}
 
-		bool Configuration::USB::getProxy()
+		const bool Configuration::USB::getProxy() const
 		{
 			// TODO
 			static const bool proxy = true;
 			return proxy;
 		}
 
-		bool Configuration::USB::getGateway()
+		const bool Configuration::USB::getGateway() const
 		{
 			// TODO
 			static const bool gateway = true;

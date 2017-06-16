@@ -23,11 +23,16 @@
 #define USBCONVERGENCELAYER_H_
 
 #include "Component.h"
+#include "DiscoveryBeacon.h"
+#include "DiscoveryBeaconEvent.h"
+#include "USBTransferService.h"
 #include "core/BundleCore.h"
 #include "core/BundleEvent.h"
 #include "ibrcommon/Exceptions.h"
 #include "ibrcommon/Logger.h"
-#include "ibrcommon/net/usb/usbconnector.h"
+#include "ibrcommon/usb/usbconnector.h"
+#include "ibrcommon/usb/usbsocket.h"
+#include "ibrcommon/usb/usbstream.h"
 #include "ibrcommon/net/vaddress.h"
 #include "ibrcommon/net/vinterface.h"
 #include "ibrdtn/data/Serializer.h"
@@ -37,23 +42,42 @@ using namespace ibrcommon;
 
 namespace dtn
 {
+	class USBTransferService;
+
 	namespace net
 	{
+		enum USBConvergenceLayerMask
+		{
+			COMPAT = 0xC0,
+			TYPE = 0x30,
+			SEQNO = 0x0C,
+			FLAGS = 0x03
+		};
+
+		enum USBConvergenceLayerType
+		{
+			DATA = 0x10,
+			DISCOVERY = 0x20,
+			ACK = 0x30,
+			NACK = 0x40
+		};
+
 		class USBConnection
 		{
 		public:
-			USBConnection(ibrcommon::usbsocket &sock, const dtn::core::Node &node);
+			USBConnection(ibrcommon::usbsocket *sock, const dtn::core::Node &node);
+			virtual ~USBConnection();
 
 			bool match(const dtn::core::Node &node) const;
 			bool match(const dtn::data::EID &destination) const;
 			bool match(const dtn::core::NodeEvent &evt) const;
 
-			usbstream& getStream() const;
+			usbstream& getStream();
 
 		private:
-			usbsocket &_socket;
-			usbstream &_stream;
-			dtn::core::Node &_node;
+			usbsocket *_socket;
+			usbstream _stream;
+			const dtn::core::Node &_node;
 		};
 
 		class USBConvergenceLayer: public ConvergenceLayer,
@@ -71,7 +95,6 @@ namespace dtn
 			virtual ~USBConvergenceLayer();
 			virtual dtn::core::Node::Protocol getDiscoveryProtocol() const;
 			virtual void queue(const dtn::core::Node &n, const dtn::net::BundleTransfer &job);
-			virtual void open(const dtn::core::Node &);
 			virtual void resetStats();
 			virtual void getStats(ConvergenceLayer::stats_data &data) const;
 
@@ -93,12 +116,6 @@ namespace dtn
 			virtual const std::string getName() const;
 
 			/**
-			 * @see ibcommon::usbconnector::usb_device_cb
-			 */
-			virtual void interface_discovered(ibrcommon::usbinterface &iface);
-			virtual void interface_lost(ibrcommon::usbinterface &iface);
-
-			/**
 			 * Reset timer and faked services for timer that reached timeout
 			 */
 			size_t timeout(Timer *t);
@@ -110,7 +127,13 @@ namespace dtn
 			 *
 			 * @return A sorted list of USBConnections to the Node
 			 */
-			std::list<USBConnection> getConnections(const Node &node) const;
+			std::list<USBConnection*> getConnections(const Node &node);
+
+
+			/**
+			 * Handle an incoming discovery beacon
+			 */
+			void handle_discovery(DiscoveryBeacon &beacon, usbsocket *sock);
 
 		protected:
 			void __cancellation() throw ();
@@ -120,9 +143,9 @@ namespace dtn
 			void componentRun() throw ();
 
 		private:
-			usbconnector _con;
-			USBTransferService _usb;
-			dtn::daemon::Configuration::USB _config;
+			usbconnector &_con;
+			USBTransferService *_usb;
+			const dtn::daemon::Configuration::USB &_config;
 
 			/**
 			 * for locking faked services
@@ -147,8 +170,8 @@ namespace dtn
 			/**
 			 * Stores sockets for neighbors
 			 */
-			std::vector<USBConnection> _connections;
 			Mutex _connectionsLock;
+			std::vector<USBConnection*> _connections;
 
 			/**
 			 * Maps discovere EIDs to usbsockets
@@ -161,3 +184,5 @@ namespace dtn
 		};
 	}
 }
+
+#endif // USBCONVERGENCELAYER_H_
