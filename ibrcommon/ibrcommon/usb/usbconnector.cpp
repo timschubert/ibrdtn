@@ -27,6 +27,10 @@
 
 namespace ibrcommon
 {
+	usbconnector::usb_device_cb_registration::usb_device_cb_registration(const uint16_t &_vendor, const uint16_t &_product, const uint8_t &_interface_num, const libusb_hotplug_callback_handle *_handle)
+		: vendor_id(_vendor), product_id(_product), interface(_interface_num), handle(_handle)
+	{}
+
 	void usbconnector::usb_thread::__cancellation() throw ()
 	{
 		_libusb_polling.destroy();
@@ -102,7 +106,7 @@ namespace ibrcommon
 		return 0;
 	}
 
-	void usbconnector::register_device_cb(usb_device_cb *cb, int vendor, int product)
+	usbconnector::usb_device_cb_registration* usbconnector::register_device_cb(usb_device_cb *cb, uint16_t vendor, uint16_t product, uint8_t interface)
 	{
 		if (vendor == 0)
 		{
@@ -126,7 +130,7 @@ namespace ibrcommon
 			}
 			else
 			{
-				usb_device_cb_registration registration = {vendor, product, cb_handle};
+				usb_device_cb_registration *registration = new usb_device_cb_registration(vendor, product, interface, cb_handle);
 				_hotplug_handles[cb].push_back(registration);
 			}
 		}
@@ -136,20 +140,22 @@ namespace ibrcommon
 		}
 	}
 
-	void usbconnector::deregister_device_cb(usb_device_cb *cb, int vendor, int product)
+	void usbconnector::unregister_device_cb(usb_device_cb *cb, usb_device_cb_registration *regi)
 	{
 		if (_cap_hotplug)
 		{
 			ibrcommon::MutexLock l(_hotplug_handles_lock);
-			std::vector<usb_device_cb_registration> registrations = _hotplug_handles[cb];
+			std::vector<usb_device_cb_registration *> registrations = _hotplug_handles[cb];
 
 			/* find all registrations that matches the vendor + product pair */
-			for (auto reg : registrations)
+			for (auto &reg : registrations)
 			{
-				if (reg.vendor_id == vendor && reg.product_id == product)
+				if (reg == regi)
 				{
-					libusb_hotplug_deregister_callback(_usb_context, *(reg.handle));
-					delete reg.handle;
+					libusb_hotplug_deregister_callback(_usb_context, *(reg->handle));
+					// TODO clean up empty registrations
+					delete reg;
+					reg = NULL;
 				}
 			}
 		}
@@ -323,5 +329,10 @@ namespace ibrcommon
 	bool usbconnector::hotplug()
 	{
 		return _cap_hotplug;
+	}
+
+	void matchDevice(uint16_t vendor, uint16_t product, uint8_t interface)
+	{
+
 	}
 }

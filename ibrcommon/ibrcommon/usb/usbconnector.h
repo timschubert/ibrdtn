@@ -47,8 +47,10 @@ namespace ibrcommon
 		class usb_device_cb_registration
 		{
 		public:
-			const uint8_t vendor_id;
-			const uint8_t product_id;
+			usb_device_cb_registration(const uint16_t &_vendor, const uint16_t &_product, const uint8_t &_interface_num, const libusb_hotplug_callback_handle *_handle);
+			const uint16_t vendor_id;
+			const uint16_t product_id;
+			const uint8_t interface;
 			const libusb_hotplug_callback_handle *handle;
 		};
 
@@ -91,8 +93,8 @@ namespace ibrcommon
 		usbconnector(usbconnector const &) = delete;
 		void operator=(usbconnector const &) = delete;
 
-		void register_device_cb(usb_device_cb *cb, int vendor, int product);
-		void deregister_device_cb(usb_device_cb *cb, int vendor, int product);
+		usb_device_cb_registration *register_device_cb(usb_device_cb *cb, uint16_t vendor, uint16_t product, uint8_t interface);
+		void unregister_device_cb(usb_device_cb *cb, usb_device_cb_registration *reg);
 
 	private:
 		usbconnector();
@@ -101,7 +103,7 @@ namespace ibrcommon
 		bool _cap_hotplug;
 
 		ibrcommon::Mutex _hotplug_handles_lock;
-		std::map<usb_device_cb *, std::vector<usb_device_cb_registration> > _hotplug_handles;
+		std::map<usb_device_cb *, std::vector<usb_device_cb_registration *> > _hotplug_handles;
 	};
 
 	static const int DEFAULT_INTERFACE = 0;

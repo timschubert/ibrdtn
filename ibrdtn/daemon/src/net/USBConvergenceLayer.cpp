@@ -54,14 +54,16 @@ namespace dtn
 			return _stream;
 		}
 
-		USBConvergenceLayer::USBConvergenceLayer()
-			: dtn::daemon::IntegratedComponent(), _run(false), _con(ibrcommon::usbconnector::get_instance()), _config(daemon::Configuration::getInstance().getUSB())
+		USBConvergenceLayer::USBConvergenceLayer(uint16_t vendor, uint16_t product, uint8_t interfaceNum, uint8_t endpointIn, uint8_t endpointOut)
+			: dtn::daemon::IntegratedComponent(), _run(false), _con(ibrcommon::usbconnector::get_instance()), _config(daemon::Configuration::getInstance().getUSB()), _endpointIn(endpointIn), _endpointOut(endpointOut)
 		{
 			_usb = new USBTransferService(*this);
+			_cb_registration = _con.register_device_cb(this, vendor, product, interfaceNum);
 		}
 
 		USBConvergenceLayer::~USBConvergenceLayer()
 		{
+			_con.unregister_device_cb(this, _cb_registration);
 			delete _usb;
 			for (auto e : _connections)
 			{
@@ -385,15 +387,14 @@ namespace dtn
 			dtn::net::DiscoveryAgent &agent = dtn::core::BundleCore::getInstance().getDiscoveryAgent();
 			agent.registerService(iface, this);
 
-			// TODO to config
-			usbsocket *sock = new usbsocket(iface, 1, 0, 1000);
 			try
 			{
+				usbsocket *sock = new usbsocket(iface, _endpointIn, _endpointOut, 1000);
 				sock->up();
 				_vsocket.add(sock, iface);
 			} catch (const socket_exception&)
 			{
-				delete sock;
+				IBRCOMMON_LOGGER_DEBUG(80) << "usbsocket failed to obtain socket" << IBRCOMMON_LOGGER_ENDL;
 			}
 		}
 

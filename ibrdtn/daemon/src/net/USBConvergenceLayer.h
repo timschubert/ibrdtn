@@ -89,7 +89,7 @@ namespace dtn
 				public dtn::core::EventReceiver<dtn::core::NodeEvent>
 		{
 		public:
-			USBConvergenceLayer();
+			USBConvergenceLayer(uint16_t vendor, uint16_t product, uint8_t inerfaceNum, uint8_t endpointIn, uint8_t endpointOut);
 
 			/** @see ConvergenceLayer */
 			virtual ~USBConvergenceLayer();
@@ -181,6 +181,17 @@ namespace dtn
 			Mutex _discoveryLock;
 
 			bool _run;
+
+			/**
+			 * connect to these endpoints if a new matching USB interface is found
+			 */
+			uint8_t _endpointIn;
+			uint8_t _endpointOut;
+
+			/**
+			 * callback registration for hotplug
+			 */
+			usbconnector::usb_device_cb_registration *_cb_registration;
 		};
 	}
 }
