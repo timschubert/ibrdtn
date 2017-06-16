@@ -1482,7 +1482,7 @@ namespace dtn
 						{
 							try
 							{
-								_components[RUNLEVEL_NETWORK].push_back(new USBConvergenceLayer(usbconnector::get_instance()));
+								_components[RUNLEVEL_NETWORK].push_back(new USBConvergenceLayer());
 								IBRCOMMON_LOGGER_TAG(NativeDaemon::TAG, info) << "USB Convergence Layer added" << IBRCOMMON_LOGGER_ENDL;
 							}
 							catch(const ibrcommon::Exception &ex)

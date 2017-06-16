@@ -54,8 +54,8 @@ namespace dtn
 			return _stream;
 		}
 
-		USBConvergenceLayer::USBConvergenceLayer(usbconnector &con)
-				: dtn::daemon::IntegratedComponent(), _run(false), _con(con), _config(daemon::Configuration::getInstance().getUSB())
+		USBConvergenceLayer::USBConvergenceLayer()
+			: dtn::daemon::IntegratedComponent(), _run(false), _con(ibrcommon::usbconnector::get_instance()), _config(daemon::Configuration::getInstance().getUSB())
 		{
 			_usb = new USBTransferService(*this);
 		}

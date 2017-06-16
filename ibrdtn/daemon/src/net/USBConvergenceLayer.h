@@ -89,7 +89,7 @@ namespace dtn
 				public dtn::core::EventReceiver<dtn::core::NodeEvent>
 		{
 		public:
-			USBConvergenceLayer(usbconnector &connector);
+			USBConvergenceLayer();
 
 			/** @see ConvergenceLayer */
 			virtual ~USBConvergenceLayer();
