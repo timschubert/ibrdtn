@@ -123,3 +123,28 @@ AC_DEFUN([AC_CHECK_IBRCOMMON_XML],
 	])
 	CPPFLAGS="$old_CPPFLAGS"
 ])
+
+AC_DEFUN([AC_CHECK_IBRCOMMON_USB],
+[
+	AC_MSG_CHECKING([checking whether ibrcommon has usb extensions])
+	old_CPPFLAGS="$CPPFLAGS"
+	CPPFLAGS="$ibrcommon_CFLAGS"
+	AC_COMPILE_IFELSE([
+		AC_LANG_PROGRAM([[
+			#include <ibrcommon/ibrcommon.h>
+		]], [[
+			#ifdef IBRCOMMON_SUPPORT_USB
+			// USB is supported
+			#else
+			# USB not supported
+			#endif
+		]])
+	], [
+	   AC_MSG_RESULT([yes])
+	   $1
+	], [
+	   AC_MSG_RESULT([no])
+	   $2
+	])
+	CPPFLAGS="$old_CPPFLAGS"
+])

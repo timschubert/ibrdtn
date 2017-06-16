@@ -27,3 +27,6 @@
 
 /* "xml extension is available" */
 #undef IBRCOMMON_SUPPORT_XML
+
+/* "usb extension is available" */
+#define IBRCOMMON_SUPPORT_USB

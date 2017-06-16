@@ -387,24 +387,12 @@ ANDROID_AC_BUILD([
 	dnl optional parameter: USB support
 	dnl -----------------------------------------------
 
-	AC_ARG_WITH([usb],
-		AS_HELP_STRING([--without-usb], [Build without usb support]),
-		[
-			with_usb="no"
-			AC_MSG_NOTICE([USB support disabled])
-		], [
-			PKG_CHECK_MODULES([USB], libusb >= 1.0.20 , [
-						   with_usb="yes"
-						   AC_SUBST(USB_CFLAGS)
-						   AC_SUBST(USB_LIBS)
-						   AC_DEFINE(HAVE_USB, [1], ["USB is available"])
-						   AC_CHECK_HEADERS([libusb-1.0/libusb.h])
-					], [
-						with_usb="no"
-						AC_MSG_WARN([USB library not found. USB is disabled.])
-				   	])
-		]
-	)
+	AC_CHECK_IBRCOMMON_USB([
+		use_usb="yes"
+	], [
+		AC_MSG_WARN([ibrcommon was compiled without libusb support. USB convergence layers are disabled.])
+		use_usb="no"
+	])
 
 	dnl -----------------------------------------------
 	dnl check for regex capabilities
