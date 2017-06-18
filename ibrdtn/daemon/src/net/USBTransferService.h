@@ -22,22 +22,57 @@
 #ifndef IBRDTN_DAEMON_SRC_NET_USBTRANSFERSERVICE_H_
 #define IBRDTN_DAEMON_SRC_NET_USBTRANSFERSERVICE_H_
 
+#include "BundleTransfer.h"
+#include "Configuration.h"
+#include "DiscoveryService.h"
+#include "core/BundleCore.h"
+#include "core/Node.h"
+#include "core/NodeEvent.h"
 #include "ibrcommon/Logger.h"
 #include "ibrcommon/usb/usbstream.h"
-#include "Configuration.h"
-#include "BundleTransfer.h"
-#include "USBConvergenceLayer.h"
-#include "DiscoveryService.h"
 #include "storage/BundleStorage.h"
-#include "core/NodeEvent.h"
-#include <sstream>
 #include <map>
+#include <sstream>
 
 namespace dtn
 {
 	namespace net
 	{
-		class USBConvergenceLayer;
+		enum USBConvergenceLayerMask
+		{
+			COMPAT = 0xC0,
+			TYPE = 0x30,
+			SEQNO = 0x0C,
+			FLAGS = 0x03
+		};
+
+		enum USBConvergenceLayerType
+		{
+			DATA = 0x10,
+			DISCOVERY = 0x20,
+			ACK = 0x30,
+			NACK = 0x40
+		};
+
+		class USBConnection
+		{
+		public:
+			USBConnection(ibrcommon::usbsocket &socket, dtn::core::Node &node);
+			USBConnection(ibrcommon::usbsocket &socket, const dtn::data::EID &id);
+			virtual ~USBConnection();
+
+			bool match(const dtn::core::Node &node) const;
+			bool match(const dtn::data::EID &destination) const;
+			bool match(const dtn::core::NodeEvent &evt) const;
+
+			ibrcommon::usbstream &getStream();
+			const dtn::core::Node &getNode() const;
+			void addNode(const dtn::core::Node &node);
+
+		private:
+			ibrcommon::usbsocket &_socket;
+			dtn::core::Node _node;
+		};
 
 		class USBTransferService : public ibrcommon::JoinableThread
 		{
@@ -45,15 +80,16 @@ namespace dtn
 			class Task
 			{
 			public:
-				Task(const dtn::core::Node &recipient, const dtn::net::BundleTransfer &transfer, const uint8_t flags);
+				Task(USBConnection &con, const dtn::net::BundleTransfer &transfer, const uint8_t flags);
 
-				const dtn::core::Node node() const;
+				USBConnection &connection();
 				const dtn::net::BundleTransfer transfer() const;
 				const uint8_t flags() const;
 				const uint8_t sequence_number() const;
 
 			private:
 				const dtn::core::Node _recipient;
+				USBConnection &_con;
 				const dtn::net::BundleTransfer _transfer;
 				const uint8_t _flags;
 				uint8_t _this_sequence_number;
@@ -62,10 +98,10 @@ namespace dtn
 			void queue(Task *t);
 			void submit(Task *t);
 
-			//static USBTransferService &getInstance(USBConvergenceLayer &clayer);
-			//USBTransferService(USBTransferService const &) = delete;
-			//void operator=(USBTransferService const &) = delete;
-			USBTransferService(USBConvergenceLayer &usbLayer);
+			// static USBTransferService &getInstance(USBConvergenceLayer &clayer);
+			// USBTransferService(USBTransferService const &) = delete;
+			// void operator=(USBTransferService const &) = delete;
+			USBTransferService();
 
 			virtual ~USBTransferService();
 
@@ -80,10 +116,6 @@ namespace dtn
 			const daemon::Configuration::USB &_config;
 
 			/**
-			 * USB convergence layer
-			 */
-			dtn::net::USBConvergenceLayer &_usb;
-			/**
 			 * Tasks to be processed
 			 */
 			ibrcommon::Queue<Task *> _tasks;
@@ -97,10 +129,6 @@ namespace dtn
 			 * false if service is to be shutdown
 			 */
 			bool _run;
-
-			/**
-			 * Constructor
-			 */
 		};
 	}
 }

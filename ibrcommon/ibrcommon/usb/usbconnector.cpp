@@ -27,34 +27,10 @@
 
 namespace ibrcommon
 {
-	usbconnector::usb_device_cb_registration::usb_device_cb_registration(const uint16_t &_vendor, const uint16_t &_product, const uint8_t &_interface_num, const libusb_hotplug_callback_handle *_handle)
-		: vendor_id(_vendor), product_id(_product), interface(_interface_num), handle(_handle)
-	{}
-
-	void usbconnector::usb_thread::__cancellation() throw ()
+	usbconnector::usb_device_cb_registration::usb_device_cb_registration(const uint16_t &_vendor, const uint16_t &_product, const uint8_t &_interface_num,
+	                                                                     const libusb_hotplug_callback_handle *_handle)
+	 : vendor_id(_vendor), product_id(_product), interface(_interface_num), handle(_handle)
 	{
-		_libusb_polling.destroy();
-	}
-
-	void usbconnector::usb_thread::setup() throw ()
-	{
-		/* Add callbacks */
-		libusb_set_pollfd_notifiers(_context, fd_added_callback, usb_fd_removed_callback, this);
-		const struct libusb_pollfd **usb_fds = libusb_get_pollfds(_context);
-		const struct libusb_pollfd **usb_iter = usb_fds;
-		if (!usb_iter)
-		{
-			std::cerr << "No USB file descriptors." << std::endl;
-		}
-		else
-		{
-			while (*usb_iter != NULL)
-			{
-				add_fd((*usb_iter)->fd, (*usb_iter)->events);
-				usb_iter++;
-			}
-		}
-		libusb_free_pollfds(usb_fds);
 	}
 
 	int usbconnector::libusb_hotplug_cb(struct libusb_context *ctx, libusb_device *device, libusb_hotplug_event event, void *cb)
@@ -64,8 +40,7 @@ namespace ibrcommon
 		int err = libusb_open(device, &handle);
 		if (err)
 		{
-			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90)
-				<< "failed to open device" << IBRCOMMON_LOGGER_ENDL;
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90) << "failed to open device" << IBRCOMMON_LOGGER_ENDL;
 			return -1;
 		}
 
@@ -78,8 +53,7 @@ namespace ibrcommon
 		err = libusb_get_device_descriptor(device, &desc);
 		if (err)
 		{
-			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90)
-				<< libusb_error(err) << IBRCOMMON_LOGGER_ENDL;
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90) << libusb_error(err) << IBRCOMMON_LOGGER_ENDL;
 			return -1;
 		}
 
@@ -87,26 +61,26 @@ namespace ibrcommon
 		err = libusb_get_string_descriptor_ascii(handle, desc.iSerialNumber, serial, 200);
 		if (err)
 		{
-			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90)
-				<< libusb_error(err) << IBRCOMMON_LOGGER_ENDL;
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90) << libusb_error(err) << IBRCOMMON_LOGGER_ENDL;
 			return -1;
 		}
-		std::stringstream ss; ss << serial;
+		std::stringstream ss;
+		ss << serial;
 		usbinterface iface(iface_name, handle, DEFAULT_INTERFACE, desc.idVendor, desc.idProduct, ss.str());
 
 		switch (event)
 		{
-		case LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED:
-			call_this->interface_discovered(iface);
-			break;
-		case LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT:
-			call_this->interface_lost(iface);
-			break;
+			case LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED:
+				call_this->interface_discovered(iface);
+				break;
+			case LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT:
+				call_this->interface_lost(iface);
+				break;
 		}
 		return 0;
 	}
 
-	usbconnector::usb_device_cb_registration* usbconnector::register_device_cb(usb_device_cb *cb, uint16_t vendor, uint16_t product, uint8_t interface)
+	usbconnector::usb_device_cb_registration *usbconnector::register_device_cb(usb_device_cb *cb, uint16_t vendor, uint16_t product, uint8_t interface)
 	{
 		if (vendor == 0)
 		{
@@ -118,26 +92,24 @@ namespace ibrcommon
 		}
 		if (_cap_hotplug)
 		{
-			ibrcommon::MutexLock l(_hotplug_handles_lock);
 			/* register callback for new device; do not save handle do not need it */
 			libusb_hotplug_callback_handle *cb_handle = new libusb_hotplug_callback_handle();
-			int err = libusb_hotplug_register_callback(_usb_context,
-					static_cast<libusb_hotplug_event>(LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT), LIBUSB_HOTPLUG_NO_FLAGS, vendor,
-					product, LIBUSB_HOTPLUG_MATCH_ANY, libusb_hotplug_cb, static_cast<void *>(cb), cb_handle);
-			if (err)
+			int err = libusb_hotplug_register_callback(
+			  _usb_context, static_cast<libusb_hotplug_event>(LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT), LIBUSB_HOTPLUG_NO_FLAGS,
+			  vendor, product, LIBUSB_HOTPLUG_MATCH_ANY, libusb_hotplug_cb, static_cast<void *>(cb), cb_handle);
+			if (err < LIBUSB_SUCCESS)
 			{
 				throw USBError(static_cast<libusb_error>(err));
 			}
 			else
 			{
 				usb_device_cb_registration *registration = new usb_device_cb_registration(vendor, product, interface, cb_handle);
+				ibrcommon::MutexLock l(_hotplug_handles_lock);
 				_hotplug_handles[cb].push_back(registration);
+				return registration;
 			}
 		}
-		else
-		{
-			// TODO
-		}
+		return NULL;
 	}
 
 	void usbconnector::unregister_device_cb(usb_device_cb *cb, usb_device_cb_registration *regi)
@@ -154,7 +126,10 @@ namespace ibrcommon
 				{
 					libusb_hotplug_deregister_callback(_usb_context, *(reg->handle));
 					// TODO clean up empty registrations
-					delete reg;
+					if (reg != NULL)
+					{
+						delete reg;
+					}
 					reg = NULL;
 				}
 			}
@@ -165,110 +140,114 @@ namespace ibrcommon
 		}
 	}
 
-	void usbconnector::usb_thread::finally() throw ()
+	void usbconnector::usb_loop() throw()
 	{
-		_libusb_polling.destroy();
-	}
+		_run = true;
 
-	usbconnector::usb_thread::usb_thread(libusb_context *con)
-			: _context(con)
-	{
-	}
+		IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::usb_loop", 80) << "started" << IBRCOMMON_LOGGER_ENDL;
 
-	usbconnector::usb_thread::~usb_thread()
-	{
-	}
-
-	void usbconnector::usb_thread::run() throw ()
-	{
-		for (;;)
+		/* Add callbacks */
+		libusb_set_pollfd_notifiers(_usb_context, fd_added_callback, usb_fd_removed_callback, this);
+		const struct libusb_pollfd **usb_fds = libusb_get_pollfds(_usb_context);
+		const struct libusb_pollfd **usb_iter = usb_fds;
+		if (!usb_iter)
 		{
-			/* copy the sets because select will modify them */
-			socketset out_pollset = _pollout;
-			socketset in_pollset = _pollout;
-
-			struct timeval timeout;
-			libusb_get_next_timeout(_context, &timeout);
-			try
+			// TODO
+			std::cerr << "No USB file descriptors." << std::endl;
+		}
+		else
+		{
+			while (*usb_iter != NULL)
 			{
-				ibrcommon::MutexLock l(_pollfd_lock);
-				_libusb_polling.select(&in_pollset, &out_pollset, NULL, &timeout);
-			} catch (socket_exception &e)
-			{
-				IBRCOMMON_LOGGER_DEBUG_TAG("usb_thread::run", 90)
-					<< "error in select on libsub fds" << IBRCOMMON_LOGGER_ENDL;
+				add_fd((*usb_iter)->fd, (*usb_iter)->events);
+				usb_iter++;
 			}
-			/* if the system requires non-zero timeouts, this will lead to bugs */
-			struct timeval zero_timeout = {0, 0};
-			if (!out_pollset.empty() || !in_pollset.empty())
+		}
+
+		struct timeval timeout;
+		struct timeval zero_timeout = {0, 0};
+		static int lock = 1;
+		fd_set inset;
+		fd_set outset;
+
+		while (_run)
+		{
+			FD_ZERO(&inset);
+			FD_ZERO(&outset);
+
+			/* copy the sets because select will modify them */
+			inset = _usb_in;
+			outset = _usb_out;
+
+			ibrcommon::MutexLock l(_pollfd_lock);
+			libusb_get_next_timeout(_usb_context, &timeout);
+			int num_fds = ::select(_high_fd + 1, &inset, &outset, NULL, &timeout);
+
+			if (num_fds < 0)
+			{
+				throw socket_exception(strerror(errno));
+			}
+			else if (num_fds == 0) // timeout
 			{
 				/* let libusb handle its internal events */
-				libusb_handle_events_timeout(_context, &zero_timeout);
+				libusb_handle_events_completed(_usb_context, &lock);
+				// IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::run", 80) << "timeout" << IBRCOMMON_LOGGER_ENDL;
+			}
+			else
+			{
+				/* let libusb handle its internal events */
+				libusb_handle_events_timeout_completed(_usb_context, &zero_timeout, &lock);
+				// IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::run", 80) << "activity" << IBRCOMMON_LOGGER_ENDL;
 			}
 		}
+		IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::usb_loop", 80) << "exiting" << IBRCOMMON_LOGGER_ENDL;
+		libusb_free_pollfds(usb_fds);
 	}
 
-	void usbconnector::usb_thread::usb_fd_removed_callback(int fd, void *user_data)
+	void usbconnector::usb_fd_removed_callback(int fd, void *user_data)
 	{
-		(static_cast<usb_thread *>(user_data))->remove_fd(fd);
+		(static_cast<usbconnector *>(user_data))->remove_fd(fd);
 	}
 
-	void usbconnector::usb_thread::fd_added_callback(int fd, short events, void *user_data)
+	void usbconnector::fd_added_callback(int fd, short events, void *user_data)
 	{
-		(static_cast<usb_thread *>(user_data))->add_fd(fd, events);
+		(static_cast<usbconnector *>(user_data))->add_fd(fd, events);
 	}
 
-	void usbconnector::usb_thread::remove_fd(int fd)
+	void usbconnector::remove_fd(int fd)
 	{
 		ibrcommon::MutexLock l(_pollfd_lock);
-		for (auto &s : _libusb_polling.getAll())
-		{
-			if (s->fd() == fd)
-			{
-				_libusb_polling.remove(s);
-			}
-		}
-		for (auto &s : _pollin)
-		{
-			if (s->fd() == fd)
-			{
-				_pollin.erase(s);
-			}
-		}
-		for (auto &s : _pollout)
-		{
-			if (s->fd() == fd)
-			{
-				_pollout.erase(s);
-			}
-		}
+		FD_CLR(fd, &_usb_in);
+		FD_CLR(fd, &_usb_out);
+		// TODO high_fd_
 	}
 
-	void usbconnector::usb_thread::add_fd(int fd, short events)
+	void usbconnector::add_fd(int fd, short events)
 	{
 		ibrcommon::MutexLock l(_pollfd_lock);
-		filesocket *b = new filesocket(fd);
-		_libusb_polling.add(b);
 
-		/* libusb does only know POLLIN and POLLOUT */
+		/* libusb only knows POLLIN and POLLOUT */
 		if (events & POLLIN)
 		{
-			_pollin.insert(b);
+			FD_SET(fd, &_usb_in);
 		}
 		if (events & POLLOUT)
 		{
-			_pollout.insert(b);
+			FD_SET(fd, &_usb_out);
+		}
+		if (fd > _high_fd)
+		{
+			_high_fd = fd;
 		}
 	}
 
-	usbconnector &usbconnector::get_instance()
+	usbconnector& usbconnector::get_instance()
 	{
 		static usbconnector _instance;
 		return _instance;
 	}
 
-	usbconnector::usbconnector()
-			: _cap_hotplug(true)
+	usbconnector::usbconnector() : _cap_hotplug(true), _high_fd(0), _run(false)
 	{
 		int res = libusb_init(&_usb_context);
 		if (res)
@@ -279,17 +258,14 @@ namespace ibrcommon
 		/* detect capabilities */
 		if (!libusb_has_capability(LIBUSB_CAP_HAS_HOTPLUG))
 		{
-			IBRCOMMON_LOGGER_DEBUG_TAG("usb_thread::setup", 90)
-				<< "no usb hotplug support detected" << IBRCOMMON_LOGGER_ENDL;
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector", 90) << "no usb hotplug support detected" << IBRCOMMON_LOGGER_ENDL;
 			_cap_hotplug = false;
 		}
-
-		usb_thread *_thread = new usb_thread(_usb_context);
-		_thread->start();
 	}
 
 	usbconnector::~usbconnector()
 	{
+		_run = false;
 		libusb_exit(_usb_context);
 	}
 
@@ -333,6 +309,10 @@ namespace ibrcommon
 
 	void matchDevice(uint16_t vendor, uint16_t product, uint8_t interface)
 	{
+	}
 
+	void usbconnector::stop_run()
+	{
+		_run = false;
 	}
 }

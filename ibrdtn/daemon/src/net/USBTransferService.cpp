@@ -25,23 +25,69 @@ namespace dtn
 {
 	namespace net
 	{
+		USBConnection::USBConnection(ibrcommon::usbsocket &socket, dtn::core::Node &node)
+			: _node(node), _socket(socket)
+		{
+		}
 
-		USBTransferService::Task::Task(const dtn::core::Node &recipient, const dtn::net::BundleTransfer &transfer, const uint8_t flags)
-		: _recipient(recipient), _transfer(transfer), _flags(flags)
+		USBConnection::USBConnection(ibrcommon::usbsocket &socket, const dtn::data::EID &id)
+			: _socket(socket)
+		{
+			_node = dtn::core::Node(id);
+		}
+
+		void USBConnection::addNode(const dtn::core::Node &node)
+		{
+			_node = node;
+		}
+
+		USBConnection::~USBConnection()
+		{
+		}
+
+		bool USBConnection::match(const dtn::core::Node &node) const
+		{
+			return node == _node;
+		}
+
+		bool USBConnection::match(const dtn::data::EID &destination) const
+		{
+			return _node.getEID().sameHost(destination);
+		}
+
+		bool USBConnection::match(const dtn::core::NodeEvent &evt) const
+		{
+			return match(evt.getNode());
+		}
+
+		ibrcommon::usbstream& USBConnection::getStream()
+		{
+
+			ibrcommon::usbstream tmp(_socket);
+			return tmp;
+		}
+
+		const dtn::core::Node& USBConnection::getNode() const
+		{
+			return _node;
+		}
+
+		USBTransferService::Task::Task(USBConnection &con, const dtn::net::BundleTransfer &transfer, const uint8_t flags)
+			: _con(con), _transfer(transfer), _flags(flags)
 		{
 			static uint8_t sequence_number;
 			sequence_number = (sequence_number + 1) % 4;
 			_this_sequence_number = sequence_number;
 		}
 
-		const dtn::core::Node USBTransferService::Task::node() const
-		{
-			return _recipient;
-		}
-
 		const dtn::net::BundleTransfer USBTransferService::Task::transfer() const
 		{
 			return _transfer;
+		}
+
+		dtn::net::USBConnection &USBTransferService::Task::connection()
+		{
+			return _con;
 		}
 
 		const uint8_t USBTransferService::Task::flags() const
@@ -54,8 +100,8 @@ namespace dtn
 			return _this_sequence_number;
 		}
 
-		USBTransferService::USBTransferService(USBConvergenceLayer &usbLayer)
-				: _config(daemon::Configuration::getInstance().getUSB()), _usb(usbLayer), _storage(dtn::core::BundleCore::getInstance().getStorage())
+		USBTransferService::USBTransferService()
+				: _config(daemon::Configuration::getInstance().getUSB()), _storage(dtn::core::BundleCore::getInstance().getStorage())
 		{
 			_run = true;
 			this->start();
@@ -119,39 +165,30 @@ namespace dtn
 		{
 			try
 			{
-				std::list<USBConnection*> connections = _usb.getConnections(t->node());
-				if (connections.empty())
+				ibrcommon::usbstream& usb = t->connection().getStream();
+
+				/* prepend header */
+				uint8_t header = USBConvergenceLayerType::DATA & USBConvergenceLayerMask::TYPE;
+
+				/* Put the sequence number for this bundle into the outgoing header */
+				header |= (t->sequence_number() << 2) & USBConvergenceLayerMask::SEQNO;
+				header |= t->flags() & USBConvergenceLayerMask::FLAGS;
+				usb << header;
+
+				/* transmit Bundle */
+				if (!_storage.contains(t->transfer().getBundle()))
 				{
-					dtn::net::TransferAbortedEvent::raise(t->node().getEID(), t->transfer().getBundle(),
-							dtn::net::TransferAbortedEvent::REASON_CONNECTION_DOWN);
+					IBRCOMMON_LOGGER_DEBUG(80) << "Bundle " << t->transfer().getBundle() << " not found" << IBRCOMMON_LOGGER_ENDL;
 				}
 				else
 				{
-					ibrcommon::usbstream& usb = connections.front()->getStream();
-
-					/* prepend header */
-					uint8_t header = USBConvergenceLayerType::DATA & USBConvergenceLayerMask::TYPE;
-
-					/* Put the sequence number for this bundle into the outgoing header */
-					header |= (t->sequence_number() << 2) & USBConvergenceLayerMask::SEQNO;
-					header |= t->flags() & USBConvergenceLayerMask::FLAGS;
-					usb << header;
-
-					/* transmit Bundle */
-					if (!_storage.contains(t->transfer().getBundle()))
-					{
-						IBRCOMMON_LOGGER_DEBUG(80) << "Bundle " << t->transfer().getBundle() << " not found" << IBRCOMMON_LOGGER_ENDL;
-					}
-					else
-					{
-						dtn::data::DefaultSerializer(usb) << _storage.get(t->transfer().getBundle());
-					}
+					dtn::data::DefaultSerializer(usb) << _storage.get(t->transfer().getBundle());
 				}
 			} catch (ibrcommon::socket_exception &e)
 			{
 				IBRCOMMON_LOGGER_DEBUG(80)
 					<< e.what() << IBRCOMMON_LOGGER_ENDL;
-				dtn::net::TransferAbortedEvent::raise(t->node().getEID(), t->transfer().getBundle(), dtn::net::TransferAbortedEvent::REASON_UNDEFINED);
+				dtn::net::TransferAbortedEvent::raise(t->connection().getNode().getEID(), t->transfer().getBundle(), dtn::net::TransferAbortedEvent::REASON_UNDEFINED);
 			}
 		}
 

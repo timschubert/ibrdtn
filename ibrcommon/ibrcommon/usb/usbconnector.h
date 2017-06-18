@@ -27,10 +27,11 @@
 #include "ibrcommon/net/vinterface.h"
 #include "ibrcommon/net/vsocket.h"
 #include "ibrcommon/thread/Thread.h"
-#include "ibrcommon/Logger.h"
 #include "usbinterface.h"
 #include <libusb-1.0/libusb.h>
 #include <poll.h>
+#include <sys/select.h>
+
 
 namespace ibrcommon
 {
@@ -47,45 +48,21 @@ namespace ibrcommon
 		class usb_device_cb_registration
 		{
 		public:
-			usb_device_cb_registration(const uint16_t &_vendor, const uint16_t &_product, const uint8_t &_interface_num, const libusb_hotplug_callback_handle *_handle);
+			usb_device_cb_registration(const uint16_t &_vendor, const uint16_t &_product, const uint8_t &_interface_num,
+			                           const libusb_hotplug_callback_handle *_handle);
 			const uint16_t vendor_id;
 			const uint16_t product_id;
 			const uint8_t interface;
 			const libusb_hotplug_callback_handle *handle;
 		};
 
-		class usb_thread : public ibrcommon::DetachedThread
-		{
-		public:
-			usb_thread(libusb_context *con);
-			virtual ~usb_thread();
-
-			static void fd_added_callback(int fd, short events, void *user_data);
-			static void usb_fd_removed_callback(int fd, void *con);
-
-		protected:
-			virtual void setup() throw();
-			virtual void run(void) throw();
-			virtual void finally(void) throw();
-			virtual void __cancellation() throw();
-
-		private:
-			/* libusb does only use POLLIN and POLLOUT events */
-			vsocket _libusb_polling;
-			ibrcommon::Mutex _pollfd_lock;
-			socketset _pollin;
-			socketset _pollout;
-			libusb_context *_context;
-
-			void usb_loop();
-
-			void add_fd(int fd, short events);
-			void remove_fd(int fd);
-		};
-
 		virtual ~usbconnector();
 		static usbconnector &get_instance();
 		static int libusb_hotplug_cb(libusb_context *ctx, libusb_device *device, libusb_hotplug_event event, void *cb);
+
+		static void fd_added_callback(int fd, short events, void *user_data);
+		static void usb_fd_removed_callback(int fd, void *con);
+
 
 		libusb_device_handle *usb_discover(const uint16_t &vendor, const uint16_t &product);
 		bool hotplug();
@@ -96,6 +73,10 @@ namespace ibrcommon
 		usb_device_cb_registration *register_device_cb(usb_device_cb *cb, uint16_t vendor, uint16_t product, uint8_t interface);
 		void unregister_device_cb(usb_device_cb *cb, usb_device_cb_registration *reg);
 
+		virtual void usb_loop(void) throw();
+
+		void stop_run();
+
 	private:
 		usbconnector();
 
@@ -104,6 +85,17 @@ namespace ibrcommon
 
 		ibrcommon::Mutex _hotplug_handles_lock;
 		std::map<usb_device_cb *, std::vector<usb_device_cb_registration *> > _hotplug_handles;
+
+		/* libusb does only use POLLIN and POLLOUT events */
+		ibrcommon::Mutex _pollfd_lock;
+		fd_set _usb_in;
+		fd_set _usb_out;
+		int _high_fd;
+
+		void add_fd(int fd, short events);
+		void remove_fd(int fd);
+
+		bool _run;
 	};
 
 	static const int DEFAULT_INTERFACE = 0;

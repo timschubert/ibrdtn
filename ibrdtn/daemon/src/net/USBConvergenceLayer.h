@@ -25,68 +25,34 @@
 #include "Component.h"
 #include "DiscoveryBeacon.h"
 #include "DiscoveryBeaconEvent.h"
+#include "USBService.h"
 #include "USBTransferService.h"
 #include "core/BundleCore.h"
 #include "core/BundleEvent.h"
 #include "ibrcommon/Exceptions.h"
 #include "ibrcommon/Logger.h"
+#include "ibrcommon/net/vaddress.h"
+#include "ibrcommon/net/vinterface.h"
 #include "ibrcommon/usb/usbconnector.h"
 #include "ibrcommon/usb/usbsocket.h"
 #include "ibrcommon/usb/usbstream.h"
-#include "ibrcommon/net/vaddress.h"
-#include "ibrcommon/net/vinterface.h"
+#include "ibrcommon/usb/usbinterface.h"
 #include "ibrdtn/data/Serializer.h"
-#include "net/ConvergenceLayer.h"
+#include "ConvergenceLayer.h"
 
 using namespace ibrcommon;
 
 namespace dtn
 {
-	class USBTransferService;
-
 	namespace net
 	{
-		enum USBConvergenceLayerMask
-		{
-			COMPAT = 0xC0,
-			TYPE = 0x30,
-			SEQNO = 0x0C,
-			FLAGS = 0x03
-		};
-
-		enum USBConvergenceLayerType
-		{
-			DATA = 0x10,
-			DISCOVERY = 0x20,
-			ACK = 0x30,
-			NACK = 0x40
-		};
-
-		class USBConnection
-		{
-		public:
-			USBConnection(ibrcommon::usbsocket *sock, const dtn::core::Node &node);
-			virtual ~USBConnection();
-
-			bool match(const dtn::core::Node &node) const;
-			bool match(const dtn::data::EID &destination) const;
-			bool match(const dtn::core::NodeEvent &evt) const;
-
-			usbstream& getStream();
-
-		private:
-			usbsocket *_socket;
-			usbstream _stream;
-			const dtn::core::Node &_node;
-		};
-
-		class USBConvergenceLayer: public ConvergenceLayer,
-				public dtn::daemon::IntegratedComponent,
-				public DiscoveryBeaconHandler,
-				public usbconnector::usb_device_cb,
-				public dtn::core::EventReceiver<DiscoveryBeaconEvent>,
-				public TimerCallback,
-				public dtn::core::EventReceiver<dtn::core::NodeEvent>
+		class USBConvergenceLayer : public ConvergenceLayer,
+		                            public dtn::daemon::IntegratedComponent,
+		                            public DiscoveryBeaconHandler,
+		                            public usbconnector::usb_device_cb,
+		                            public dtn::core::EventReceiver<DiscoveryBeaconEvent>,
+		                            public TimerCallback,
+		                            public dtn::core::EventReceiver<dtn::core::NodeEvent>
 		{
 		public:
 			USBConvergenceLayer(uint16_t vendor, uint16_t product, uint8_t inerfaceNum, uint8_t endpointIn, uint8_t endpointOut);
@@ -99,16 +65,16 @@ namespace dtn
 			virtual void getStats(ConvergenceLayer::stats_data &data) const;
 
 			/** @see DiscoveryBeaconHandler */
-			virtual void onUpdateBeacon(const ibrcommon::vinterface &iface, DiscoveryBeacon &beacon) throw (NoServiceHereException);
-			virtual void onAdvertiseBeacon(const ibrcommon::vinterface &iface, DiscoveryBeacon &beacon) throw (NoServiceHereException);
+			virtual void onUpdateBeacon(const vinterface &iface, DiscoveryBeacon &beacon) throw(NoServiceHereException);
+			virtual void onAdvertiseBeacon(const vinterface &iface, DiscoveryBeacon &beacon) throw(NoServiceHereException);
 
 			/** @see usbconnector::usb_device_cb */
 			virtual void interface_discovered(usbinterface &iface);
 			virtual void interface_lost(usbinterface &iface);
 
-			void raiseEvent(const DiscoveryBeaconEvent &event) throw ();
-			void raiseEvent(const TimeEvent &event) throw ();
-			void raiseEvent(const NodeEvent &event) throw ();
+			void raiseEvent(const DiscoveryBeaconEvent &event) throw();
+			void raiseEvent(const TimeEvent &event) throw();
+			void raiseEvent(const NodeEvent &event) throw();
 
 			/**
 			 * @see Component::getName()
@@ -127,24 +93,25 @@ namespace dtn
 			 *
 			 * @return A sorted list of USBConnections to the Node
 			 */
-			std::list<USBConnection*> getConnections(const Node &node);
+			std::list<USBConnection *> getConnections(const Node &node);
 
 
 			/**
 			 * Handle an incoming discovery beacon
 			 */
-			void handle_discovery(DiscoveryBeacon &beacon, usbsocket *sock);
+			void handle_discovery(DiscoveryBeacon &beacon, usbsocket &sock);
 
 		protected:
-			void __cancellation() throw ();
+			void __cancellation() throw();
 
-			void componentUp() throw ();
-			void componentDown() throw ();
-			void componentRun() throw ();
+			void componentUp() throw();
+			void componentDown() throw();
+			void componentRun() throw();
 
 		private:
 			usbconnector &_con;
 			USBTransferService *_usb;
+			USBService *_service;
 			const dtn::daemon::Configuration::USB &_config;
 
 			/**
@@ -171,14 +138,7 @@ namespace dtn
 			 * Stores sockets for neighbors
 			 */
 			Mutex _connectionsLock;
-			std::vector<USBConnection*> _connections;
-
-			/**
-			 * Maps discovere EIDs to usbsockets
-			 * TODO
-			 */
-			std::map<dtn::data::EID, usbsocket *> _discoveredSockets;
-			Mutex _discoveryLock;
+			std::vector<USBConnection *> _connections;
 
 			bool _run;
 

@@ -358,7 +358,7 @@ ANDROID_AC_BUILD([
 			@<:@default=no@:>@]),
 		[
 		if test "x$with_libusb" = "xyes"; then
-			PKG_CHECK_MODULES(LIBUSB, libusb-1.0>=1.0.20, [
+			PKG_CHECK_MODULES(LIBUSB, libusb-1.0, [
 				use_libusb="yes"
 				AC_DEFINE(HAVE_LIBUSB, [1], ["libusb library is available"])
 				AC_SUBST(LIBUSB_CFLAGS)

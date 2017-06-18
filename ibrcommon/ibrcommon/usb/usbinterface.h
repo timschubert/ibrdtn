@@ -31,7 +31,7 @@
 
 namespace ibrcommon
 {
-	class USBError: public std::exception
+	class USBError: public ibrcommon::Exception
 	{
 	public:
 		USBError(libusb_error e)
@@ -57,7 +57,7 @@ namespace ibrcommon
 			virtual ~usb_link_cb()
 			{
 			}
-			;
+
 			virtual void event_link_up(usbinterface &iface) = 0;
 			virtual void event_link_down(usbinterface &iface) = 0;
 		};
