@@ -42,6 +42,7 @@ namespace dtn
 			while (_run)
 			{
 				_con.usb_loop();
+				yield();
 			}
 		}
 

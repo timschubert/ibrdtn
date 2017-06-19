@@ -49,7 +49,7 @@ namespace ibrcommon
 		std::stringstream s;
 		s << "usb" << ':' << busnum << ':' << address;
 		std::string iface_name = s.str();
-		libusb_device_descriptor desc = {0};
+		libusb_device_descriptor desc = {};
 		err = libusb_get_device_descriptor(device, &desc);
 		if (err)
 		{
@@ -144,20 +144,37 @@ namespace ibrcommon
 	{
 		struct timeval timeout;
 		struct timeval zero_timeout = {0, 0};
-		static int lock = 1;
+		static int lock = 0;
 		fd_set inset;
 		fd_set outset;
+		int high;
 		{
 			FD_ZERO(&inset);
 			FD_ZERO(&outset);
 
-			/* copy the sets because select will modify them */
-			inset = _usb_in;
-			outset = _usb_out;
+			{
+				ibrcommon::MutexLock l(_pollfd_lock);
 
-			ibrcommon::MutexLock l(_pollfd_lock);
-			libusb_get_next_timeout(_usb_context, &timeout);
-			int num_fds = ::select(_high_fd + 1, &inset, &outset, NULL, &timeout);
+				/* copy the sets because select will modify them */
+				inset = _usb_in;
+				outset = _usb_out;
+				high = _high_fd;
+			}
+
+			int err = libusb_get_next_timeout(_usb_context, &timeout);
+			struct timeval *select_timeout;
+			if (err < 0)
+			{
+				throw USBError(static_cast<libusb_error>(err));
+			}
+			else if (err == 0) // Linux and Darwin Kernels
+			{
+				select_timeout = NULL;
+			} else
+			{
+				select_timeout = &timeout;
+			}
+			int num_fds = ::select(high + 1, &inset, &outset, NULL, select_timeout);
 
 			if (num_fds < 0)
 			{
@@ -166,7 +183,7 @@ namespace ibrcommon
 			else if (num_fds == 0) // timeout
 			{
 				/* let libusb handle its internal events */
-				libusb_handle_events_completed(_usb_context, &lock);
+				libusb_handle_events_timeout_completed(_usb_context, &zero_timeout, &lock);
 				// IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::run", 80) << "timeout" << IBRCOMMON_LOGGER_ENDL;
 			}
 			else
