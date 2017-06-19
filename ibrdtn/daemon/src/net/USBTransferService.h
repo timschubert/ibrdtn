@@ -98,9 +98,6 @@ namespace dtn
 			void queue(Task *t);
 			void submit(Task *t);
 
-			// static USBTransferService &getInstance(USBConvergenceLayer &clayer);
-			// USBTransferService(USBTransferService const &) = delete;
-			// void operator=(USBTransferService const &) = delete;
 			USBTransferService();
 
 			virtual ~USBTransferService();

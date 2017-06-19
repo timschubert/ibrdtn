@@ -151,12 +151,6 @@ namespace dtn
 			}
 		}
 
-		//USBTransferService &USBTransferService::getInstance(USBConvergenceLayer &clayer)
-		//{
-		//	static USBTransferService instance(clayer);
-		//	return instance;
-		//}
-
 		void USBTransferService::queue(USBTransferService::Task *t)
 		{
 			_tasks.push(t);

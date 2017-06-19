@@ -73,7 +73,6 @@ namespace dtn
 			virtual void interface_lost(usbinterface &iface);
 
 			void raiseEvent(const DiscoveryBeaconEvent &event) throw();
-			void raiseEvent(const TimeEvent &event) throw();
 			void raiseEvent(const NodeEvent &event) throw();
 
 			/**
@@ -100,8 +99,6 @@ namespace dtn
 			 * Handle an incoming discovery beacon
 			 */
 			void handle_discovery(DiscoveryBeacon &beacon, usbsocket &sock);
-
-			//void startup() throw ();
 
 		protected:
 			void __cancellation() throw();

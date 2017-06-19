@@ -1619,6 +1619,7 @@ namespace dtn
 		}
 
 		Configuration::USB::USB()
+		: _proxy(false), _gateway(false)
 		{
 		}
 
@@ -1635,24 +1636,17 @@ namespace dtn
 
 		const std::string& Configuration::USB::getOwnAddress() const
 		{
-			// TODO
-			// usb:<bus>.<address>.<serial number>
-			static const std::string host_address = "usb:0.0.0";
-			return host_address;
-		}
-
-		const bool Configuration::USB::getProxy() const
-		{
-			// TODO
-			static const bool proxy = true;
-			return proxy;
+			return _address;
 		}
 
 		const bool Configuration::USB::getGateway() const
 		{
-			// TODO
-			static const bool gateway = true;
-			return gateway;
+			return _gateway;
+		}
+
+		const bool Configuration::USB::getProxy() const
+		{
+			return _proxy;
 		}
 	}
 }

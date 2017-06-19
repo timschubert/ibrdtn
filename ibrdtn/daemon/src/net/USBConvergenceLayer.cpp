@@ -41,12 +41,13 @@ namespace dtn
 
 		USBConvergenceLayer::~USBConvergenceLayer()
 		{
-			delete _usb;
-			delete _service;
-
 			_run = false;
+			this->stop();
 			this->join();
 			_con.unregister_device_cb(this, _cb_registration);
+
+			delete _usb;
+			delete _service;
 
 			{
 				MutexLock l(_fakedServicesLock);
@@ -179,7 +180,6 @@ namespace dtn
 
 		void USBConvergenceLayer::componentRun() throw()
 		{
-			dtn::net::DiscoveryAgent &agent = dtn::core::BundleCore::getInstance().getDiscoveryAgent();
 
 			struct timeval tv;
 			tv.tv_sec = 1;
@@ -213,8 +213,8 @@ namespace dtn
 							continue;
 						}
 
-						stringstream ss1;
-						ss1.write(data, len);
+						ss.flush();
+						ss.write(data, len);
 
 						try
 						{
@@ -226,7 +226,7 @@ namespace dtn
 							const int flags = (header & USBConvergenceLayerMask::FLAGS);
 							const int seqnr = (header & USBConvergenceLayerMask::SEQNO) >> 2;
 
-							DiscoveryBeacon beacon = agent.obtainBeacon();
+							DiscoveryBeacon beacon = dtn::core::BundleCore::getInstance().getDiscoveryAgent().obtainBeacon();
 
 							switch (header & USBConvergenceLayerMask::TYPE)
 							{
@@ -311,7 +311,6 @@ namespace dtn
 
 			DiscoveryBeacon::service_list &services = beacon.getServices();
 
-			dtn::net::DiscoveryAgent &agent = dtn::core::BundleCore::getInstance().getDiscoveryAgent();
 			{
 				MutexLock l(_connectionsLock);
 				bool found = false;
@@ -331,7 +330,7 @@ namespace dtn
 				}
 			}
 			/* announce the beacon */
-			agent.onBeaconReceived(beacon);
+			dtn::core::BundleCore::getInstance().getDiscoveryAgent().onBeaconReceived(beacon);
 
 			if (_config.getGateway())
 			{
@@ -354,17 +353,6 @@ namespace dtn
 			if (_config.getProxy())
 			{
 				DiscoveryBeaconEvent::raise(beacon, EventDiscoveryBeaconAction::DISCOVERY_PROXY, sock);
-			}
-		}
-
-		void USBConvergenceLayer::raiseEvent(const TimeEvent &event) throw()
-		{
-			switch (event.getAction())
-			{
-				case dtn::core::TIME_SECOND_TICK:
-					break;
-				default:
-					break;
 			}
 		}
 
@@ -428,8 +416,7 @@ namespace dtn
 
 		void USBConvergenceLayer::interface_discovered(usbinterface &iface)
 		{
-			dtn::net::DiscoveryAgent &agent = dtn::core::BundleCore::getInstance().getDiscoveryAgent();
-			agent.registerService(iface, this);
+			dtn::core::BundleCore::getInstance().getDiscoveryAgent().registerService(iface, this);
 
 			try
 			{
@@ -475,13 +462,14 @@ namespace dtn
 					}
 					break;
 				}
+				default:
+					break;
 			}
 		}
 
 		void USBConvergenceLayer::interface_lost(usbinterface &iface)
 		{
-			dtn::net::DiscoveryAgent &agent = dtn::core::BundleCore::getInstance().getDiscoveryAgent();
-			agent.unregisterService(iface, this);
+			dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(iface, this);
 
 			for (auto &s : _vsocket.getAll())
 			{
@@ -514,10 +502,5 @@ namespace dtn
 		{
 			return "USBConvergenceLayer";
 		}
-
-		//void USBConvergenceLayer::startup() throw ()
-		//{
-		//	this->componentRun();
-		//}
 	}
 }
