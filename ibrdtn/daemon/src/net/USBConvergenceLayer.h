@@ -101,6 +101,8 @@ namespace dtn
 			 */
 			void handle_discovery(DiscoveryBeacon &beacon, usbsocket &sock);
 
+			void startup() throw ();
+
 		protected:
 			void __cancellation() throw();
 

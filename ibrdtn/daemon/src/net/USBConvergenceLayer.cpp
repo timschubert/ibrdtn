@@ -36,6 +36,7 @@ namespace dtn
 			_service = new USBService(_con);
 			_usb = new USBTransferService();
 			_cb_registration = _con.register_device_cb(this, vendor, product, interfaceNum);
+			_vsocket.up();
 		}
 
 		USBConvergenceLayer::~USBConvergenceLayer()
@@ -201,6 +202,7 @@ namespace dtn
 						}
 						catch (socket_exception &e)
 						{
+							IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
 							continue;
 						}
 
@@ -252,18 +254,25 @@ namespace dtn
 									break;
 							}
 						}
-						catch (const dtn::InvalidDataException &)
+						catch (const dtn::InvalidDataException &e)
 						{
+							IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
 						}
-						catch (const IOException &)
+						catch (const IOException &e)
 						{
+							IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
 						}
 					}
 				}
-				catch (const vsocket_timeout &)
+				catch (const vsocket_timeout &e)
 				{
 					tv.tv_sec = 1;
 					tv.tv_usec = 0;
+					IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
+				}
+				catch (const vsocket_interrupt &e)
+				{
+					IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
 				}
 			}
 		}
@@ -492,6 +501,11 @@ namespace dtn
 		const std::string USBConvergenceLayer::getName() const
 		{
 			return "USBConvergenceLayer";
+		}
+
+		void USBConvergenceLayer::startup() throw ()
+		{
+			this->componentRun();
 		}
 	}
 }
