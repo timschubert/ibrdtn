@@ -42,6 +42,9 @@ CONF_PARAMS="${CONF_PARAMS} --enable-docs"
 # enable code coverage
 CONF_PARAMS="${CONF_PARAMS} --enable-gcov"
 
+# include usb support (ibrcommon, ibrdtn)
+CONF_PARAMS="${CONF_PARAMS} --with-usb --with-libusb"
+
 # configure all packages
 ./configure ${CONF_PARAMS} $@
 
