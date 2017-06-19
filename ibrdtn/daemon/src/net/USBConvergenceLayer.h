@@ -52,7 +52,7 @@ namespace dtn
 		                            public dtn::core::EventReceiver<DiscoveryBeaconEvent>,
 		                            public dtn::core::EventReceiver<dtn::core::NodeEvent>,
 		                            public TimerCallback,
-		                            public dtn::daemon::IntegratedComponent
+		                            public dtn::daemon::IndependentComponent
 		{
 		public:
 			USBConvergenceLayer(uint16_t vendor, uint16_t product, uint8_t inerfaceNum, uint8_t endpointIn, uint8_t endpointOut);
@@ -101,7 +101,7 @@ namespace dtn
 			 */
 			void handle_discovery(DiscoveryBeacon &beacon, usbsocket &sock);
 
-			void startup() throw ();
+			//void startup() throw ();
 
 		protected:
 			void __cancellation() throw();

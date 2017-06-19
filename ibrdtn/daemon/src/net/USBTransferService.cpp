@@ -108,6 +108,7 @@ namespace dtn
 
 		USBTransferService::~USBTransferService()
 		{
+			_run = false;
 			this->stop();
 			this->join();
 
@@ -128,7 +129,7 @@ namespace dtn
 			{
 				try
 				{
-					USBTransferService::Task *t = _tasks.poll();
+					USBTransferService::Task *t = _tasks.poll(1000);
 					/* check storage for this bundle */
 					if (!_storage.contains(t->transfer().getBundle()))
 					{
@@ -143,7 +144,7 @@ namespace dtn
 					t = NULL;
 				} catch (ibrcommon::QueueUnblockedException&)
 				{
-					IBRCOMMON_LOGGER_DEBUG(42)
+					IBRCOMMON_LOGGER_DEBUG_TAG("USBTransferService", 80)
 						<< "Queue was unblocked." << IBRCOMMON_LOGGER_ENDL;
 				}
 			}

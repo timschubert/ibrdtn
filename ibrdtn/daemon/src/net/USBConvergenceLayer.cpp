@@ -26,12 +26,12 @@ namespace dtn
 	namespace net
 	{
 		USBConvergenceLayer::USBConvergenceLayer(uint16_t vendor, uint16_t product, uint8_t interfaceNum, uint8_t endpointIn, uint8_t endpointOut)
-		 : dtn::daemon::IntegratedComponent()
+		 : dtn::daemon::IndependentComponent()
 		 , _con(usbconnector::get_instance())
 		 , _config(daemon::Configuration::getInstance().getUSB())
 		 , _endpointIn(endpointIn)
 		 , _endpointOut(endpointOut)
-		 , _run(true)
+		 , _run(false)
 		{
 			_service = new USBService(_con);
 			_usb = new USBTransferService();
@@ -41,9 +41,13 @@ namespace dtn
 
 		USBConvergenceLayer::~USBConvergenceLayer()
 		{
-			_con.unregister_device_cb(this, _cb_registration);
 			delete _usb;
 			delete _service;
+
+			_run = false;
+			this->join();
+			_con.unregister_device_cb(this, _cb_registration);
+
 			{
 				MutexLock l(_fakedServicesLock);
 				for (auto &timer : _fakedServicesTimers)
@@ -159,14 +163,17 @@ namespace dtn
 
 		void USBConvergenceLayer::componentUp() throw()
 		{
-			// register as discovery beacon handler
+			/* register as discovery beacon handler */
 			dtn::core::BundleCore::getInstance().getDiscoveryAgent().registerService(this);
+
+			_run = true;
 		}
 
 		void USBConvergenceLayer::componentDown() throw()
 		{
-			// un-register as discovery beacon handler
 			_run = false;
+
+			/* un-register as discovery beacon handler */
 			dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(this);
 		}
 
@@ -275,6 +282,11 @@ namespace dtn
 					IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
 				}
 			}
+		}
+
+		void USBConvergenceLayer::__cancellation() throw()
+		{
+			_run = false;
 		}
 
 		void USBConvergenceLayer::handle_discovery(DiscoveryBeacon &beacon, usbsocket &sock)
@@ -503,9 +515,9 @@ namespace dtn
 			return "USBConvergenceLayer";
 		}
 
-		void USBConvergenceLayer::startup() throw ()
-		{
-			this->componentRun();
-		}
+		//void USBConvergenceLayer::startup() throw ()
+		//{
+		//	this->componentRun();
+		//}
 	}
 }
