@@ -116,6 +116,7 @@ namespace dtn
 			while (!_tasks.empty())
 			{
 				Task *t = _tasks.front();
+				dtn::net::TransferAbortedEvent::raise(t->connection().getNode().getEID(), t->transfer().getBundle(), dtn::net::TransferAbortedEvent::REASON_UNDEFINED);
 				_tasks.pop();
 				delete t;
 				t = NULL;
