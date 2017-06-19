@@ -26,8 +26,9 @@ namespace dtn
 	namespace net
 	{
 		USBService::USBService(ibrcommon::usbconnector &con)
-			: _con(con)
+			: _con(con), _run(true)
 		{
+			this->start();
 		}
 
 		USBService::~USBService()
@@ -38,12 +39,15 @@ namespace dtn
 
 		void USBService::run(void) throw ()
 		{
-			_con.usb_loop();
+			while (_run)
+			{
+				_con.usb_loop();
+			}
 		}
 
 		void USBService::__cancellation() throw ()
 		{
-			_con.stop_run();
+			_run = false;
 		}
 	}
 }

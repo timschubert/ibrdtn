@@ -47,12 +47,12 @@ namespace dtn
 	namespace net
 	{
 		class USBConvergenceLayer : public ConvergenceLayer,
-		                            public dtn::daemon::IntegratedComponent,
 		                            public DiscoveryBeaconHandler,
 		                            public usbconnector::usb_device_cb,
 		                            public dtn::core::EventReceiver<DiscoveryBeaconEvent>,
+		                            public dtn::core::EventReceiver<dtn::core::NodeEvent>,
 		                            public TimerCallback,
-		                            public dtn::core::EventReceiver<dtn::core::NodeEvent>
+		                            public dtn::daemon::IntegratedComponent
 		{
 		public:
 			USBConvergenceLayer(uint16_t vendor, uint16_t product, uint8_t inerfaceNum, uint8_t endpointIn, uint8_t endpointOut);

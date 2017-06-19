@@ -31,18 +31,32 @@ namespace dtn
 		 , _config(daemon::Configuration::getInstance().getUSB())
 		 , _endpointIn(endpointIn)
 		 , _endpointOut(endpointOut)
-		 , _run(false)
+		 , _run(true)
 		{
-			_usb = new USBTransferService();
 			_service = new USBService(_con);
+			_usb = new USBTransferService();
 			_cb_registration = _con.register_device_cb(this, vendor, product, interfaceNum);
 		}
 
 		USBConvergenceLayer::~USBConvergenceLayer()
 		{
 			_con.unregister_device_cb(this, _cb_registration);
-			delete _service;
 			delete _usb;
+			delete _service;
+			{
+				MutexLock l(_fakedServicesLock);
+				for (auto &timer : _fakedServicesTimers)
+				{
+					delete timer.second;
+				}
+			}
+			{
+				MutexLock l(_connectionsLock);
+				for (auto *con : _connections)
+				{
+					delete con;
+				}
+			}
 		}
 
 		dtn::core::Node::Protocol USBConvergenceLayer::getDiscoveryProtocol() const
@@ -142,10 +156,6 @@ namespace dtn
 			// TODO get packet loss
 		}
 
-		void USBConvergenceLayer::__cancellation() throw()
-		{
-		}
-
 		void USBConvergenceLayer::componentUp() throw()
 		{
 			// register as discovery beacon handler
@@ -155,13 +165,12 @@ namespace dtn
 		void USBConvergenceLayer::componentDown() throw()
 		{
 			// un-register as discovery beacon handler
+			_run = false;
 			dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(this);
 		}
 
 		void USBConvergenceLayer::componentRun() throw()
 		{
-			_run = true;
-
 			dtn::net::DiscoveryAgent &agent = dtn::core::BundleCore::getInstance().getDiscoveryAgent();
 
 			struct timeval tv;

@@ -142,35 +142,11 @@ namespace ibrcommon
 
 	void usbconnector::usb_loop() throw()
 	{
-		_run = true;
-
-		IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::usb_loop", 80) << "started" << IBRCOMMON_LOGGER_ENDL;
-
-		/* Add callbacks */
-		libusb_set_pollfd_notifiers(_usb_context, fd_added_callback, usb_fd_removed_callback, this);
-		const struct libusb_pollfd **usb_fds = libusb_get_pollfds(_usb_context);
-		const struct libusb_pollfd **usb_iter = usb_fds;
-		if (!usb_iter)
-		{
-			// TODO
-			std::cerr << "No USB file descriptors." << std::endl;
-		}
-		else
-		{
-			while (*usb_iter != NULL)
-			{
-				add_fd((*usb_iter)->fd, (*usb_iter)->events);
-				usb_iter++;
-			}
-		}
-
 		struct timeval timeout;
 		struct timeval zero_timeout = {0, 0};
 		static int lock = 1;
 		fd_set inset;
 		fd_set outset;
-
-		while (_run)
 		{
 			FD_ZERO(&inset);
 			FD_ZERO(&outset);
@@ -200,8 +176,6 @@ namespace ibrcommon
 				// IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::run", 80) << "activity" << IBRCOMMON_LOGGER_ENDL;
 			}
 		}
-		IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::usb_loop", 80) << "exiting" << IBRCOMMON_LOGGER_ENDL;
-		libusb_free_pollfds(usb_fds);
 	}
 
 	void usbconnector::usb_fd_removed_callback(int fd, void *user_data)
@@ -247,7 +221,7 @@ namespace ibrcommon
 		return _instance;
 	}
 
-	usbconnector::usbconnector() : _cap_hotplug(true), _high_fd(0), _run(false)
+	usbconnector::usbconnector() : _cap_hotplug(true), _high_fd(0)
 	{
 		int res = libusb_init(&_usb_context);
 		if (res)
@@ -261,11 +235,29 @@ namespace ibrcommon
 			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector", 90) << "no usb hotplug support detected" << IBRCOMMON_LOGGER_ENDL;
 			_cap_hotplug = false;
 		}
+
+		/* Add callbacks */
+		libusb_set_pollfd_notifiers(_usb_context, fd_added_callback, usb_fd_removed_callback, this);
+		const struct libusb_pollfd **usb_fds = libusb_get_pollfds(_usb_context);
+		const struct libusb_pollfd **usb_iter = usb_fds;
+		if (!usb_iter)
+		{
+			// TODO
+			std::cerr << "No USB file descriptors." << std::endl;
+		}
+		else
+		{
+			while (*usb_iter != NULL)
+			{
+				add_fd((*usb_iter)->fd, (*usb_iter)->events);
+				usb_iter++;
+			}
+		}
+		libusb_free_pollfds(usb_fds);
 	}
 
 	usbconnector::~usbconnector()
 	{
-		_run = false;
 		libusb_exit(_usb_context);
 	}
 
@@ -309,10 +301,5 @@ namespace ibrcommon
 
 	void matchDevice(uint16_t vendor, uint16_t product, uint8_t interface)
 	{
-	}
-
-	void usbconnector::stop_run()
-	{
-		_run = false;
 	}
 }

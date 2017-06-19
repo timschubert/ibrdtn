@@ -101,9 +101,8 @@ namespace dtn
 		}
 
 		USBTransferService::USBTransferService()
-				: _config(daemon::Configuration::getInstance().getUSB()), _storage(dtn::core::BundleCore::getInstance().getStorage())
+				: _config(daemon::Configuration::getInstance().getUSB()), _storage(dtn::core::BundleCore::getInstance().getStorage()), _run(true)
 		{
-			_run = true;
 			this->start();
 		}
 
@@ -194,6 +193,7 @@ namespace dtn
 
 		void USBTransferService::__cancellation() throw()
 		{
+			_run = false;
 		}
 	}
 }

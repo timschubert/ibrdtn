@@ -47,6 +47,7 @@ namespace dtn
 
 		private:
 			ibrcommon::usbconnector &_con;
+			bool _run;
 		};
 	}
 }

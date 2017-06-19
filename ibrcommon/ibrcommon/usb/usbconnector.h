@@ -75,8 +75,6 @@ namespace ibrcommon
 
 		virtual void usb_loop(void) throw();
 
-		void stop_run();
-
 	private:
 		usbconnector();
 
@@ -94,8 +92,6 @@ namespace ibrcommon
 
 		void add_fd(int fd, short events);
 		void remove_fd(int fd);
-
-		bool _run;
 	};
 
 	static const int DEFAULT_INTERFACE = 0;
