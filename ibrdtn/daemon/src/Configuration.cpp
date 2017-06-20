@@ -894,11 +894,11 @@ namespace dtn
 
 					case Configuration::NetConfig::NETWORK_DGRAM_USB:
 					{
-						nc.vendor = conf.read<uint16_t>(key_vendor, 0x483);
-						nc.product = conf.read<uint16_t>(key_product, 0x1df8);
-						nc.interface_num = conf.read<uint8_t>(key_interface_num, 11);
+						nc.vendor = conf.read<int>(key_vendor, 0x483);
+						nc.product = conf.read<int>(key_product, 0x1df8);
+						nc.interface_num = conf.read<int>(key_interface_num, 11);
 						nc.endpoint_in = conf.read<uint8_t>(key_endpoint_in, 1);
-						nc.endpoint_out = conf.read<uint8_t>(key_endpoint_out, 41);
+						nc.endpoint_out = conf.read<uint8_t>(key_endpoint_out, 81);
 						break;
 					}
 

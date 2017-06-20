@@ -151,8 +151,6 @@ namespace dtn
 					t = NULL;
 				} catch (ibrcommon::QueueUnblockedException&)
 				{
-					IBRCOMMON_LOGGER_DEBUG_TAG("USBTransferService", 80)
-						<< "Queue was unblocked." << IBRCOMMON_LOGGER_ENDL;
 				}
 			}
 		}

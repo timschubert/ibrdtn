@@ -51,9 +51,9 @@ namespace ibrcommon
 		/* allocate a stream for each endpoint */
 		uint8_t eps[] = {ep_in, ep_out};
 		int err = libusb_alloc_streams(interface.device(), 1, eps, 2);
-		if (err)
+		if (err < 0)
 		{
-			throw USBError(static_cast<libusb_error>(err));
+			throw socket_exception(usb_error_string(err));
 		}
 		int fds[2];
 		err = ::pipe(fds);
@@ -78,7 +78,7 @@ namespace ibrcommon
 		int err = libusb_free_streams(interface.device(), eps, 2);
 		if (err)
 		{
-			throw USBError(static_cast<libusb_error>(err));
+			throw socket_exception(usb_error_string(err));
 		}
 		basesocket::_state = SOCKET_DOWN;
 		::close(_input._fd);
@@ -175,12 +175,12 @@ namespace ibrcommon
 	}
 
 
-	bool usbsocket::operator==(const usbsocket& rhs)
+	bool usbsocket::operator==(const usbsocket& rhs) const
 	{
 		return this->interface == rhs.interface;
 	}
 
-	bool usbsocket::operator!=(const usbsocket& rhs)
+	bool usbsocket::operator!=(const usbsocket& rhs) const
 	{
 		return !(*this== rhs);
 	}

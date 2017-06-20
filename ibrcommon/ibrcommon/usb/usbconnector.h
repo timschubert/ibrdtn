@@ -48,11 +48,11 @@ namespace ibrcommon
 		class usb_device_cb_registration
 		{
 		public:
-			usb_device_cb_registration(const uint16_t &_vendor, const uint16_t &_product, const uint8_t &_interface_num,
+			usb_device_cb_registration(const int &_vendor, const int &_product, const int &_interface_num,
 			                           const libusb_hotplug_callback_handle *_handle);
-			const uint16_t vendor_id;
-			const uint16_t product_id;
-			const uint8_t interface;
+			const int vendor_id;
+			const int product_id;
+			const int interface;
 			const libusb_hotplug_callback_handle *handle;
 		};
 
@@ -64,13 +64,13 @@ namespace ibrcommon
 		static void usb_fd_removed_callback(int fd, void *con);
 
 
-		libusb_device_handle *usb_discover(const uint16_t &vendor, const uint16_t &product);
+		libusb_device_handle *usb_discover(const int &vendor, const int &product);
 		bool hotplug();
 
 		usbconnector(usbconnector const &) = delete;
 		void operator=(usbconnector const &) = delete;
 
-		usb_device_cb_registration *register_device_cb(usb_device_cb *cb, uint16_t vendor, uint16_t product, uint8_t interface);
+		usb_device_cb_registration *register_device_cb(usb_device_cb *cb, int vendor, int product, int interface);
 		void unregister_device_cb(usb_device_cb *cb, usb_device_cb_registration *reg);
 
 		virtual void usb_loop(void) throw();

@@ -23,15 +23,13 @@
 
 namespace ibrcommon
 {
-	usbinterface::usbinterface(std::string &name, libusb_device_handle *device, const int &num, const uint16_t _vendor, const uint16_t _product, const std::string _serial)
-			: vinterface(name), interface_num(num), _device(device), vendor(_vendor), product(_product), serial(_serial)
+	usbinterface::usbinterface(const std::string &name, libusb_device_handle *device, const uint8_t &bus_num, const uint8_t &addr, const uint8_t &iface)
+			: vinterface(name), _device(device), bus(bus_num), address(addr), interface_num(iface)
 	{
 	}
 
 	usbinterface::~usbinterface()
 	{
-		set_down();
-		libusb_close (_device);
 	}
 
 	void usbinterface::set_up()
@@ -57,5 +55,17 @@ namespace ibrcommon
 	libusb_device_handle *usbinterface::device() const
 	{
 		return _device;
+	}
+
+	bool usbinterface::operator==(const usbinterface& rhs) const
+	{
+		return this->interface_num == rhs.interface_num
+				&& this->bus == rhs.bus
+				&& this->address == rhs.address;
+	}
+
+	bool usbinterface::operator!=(const usbinterface& rhs) const
+	{
+		return !(*this == rhs);
 	}
 }

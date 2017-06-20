@@ -70,7 +70,6 @@ namespace dtn
 					delete con;
 				}
 			}
-			IBRCOMMON_LOGGER_DEBUG_TAG("NOPE", 90) << "WHATWHATWHAT" << IBRCOMMON_LOGGER_ENDL;
 		}
 
 		dtn::core::Node::Protocol USBConvergenceLayer::getDiscoveryProtocol() const
@@ -140,9 +139,7 @@ namespace dtn
 				{
 					const usbinterface &usbiface = dynamic_cast<const usbinterface &>(iface);
 					std::stringstream ss;
-					ss << "usb="
-					   << "host-mode"
-					   << ";vendor=" << usbiface.vendor << ";product=" << usbiface.product << ";serial=" << usbiface.serial;
+					ss << "usb=" << "host-mode";
 					DiscoveryService srv("usb", ss.str());
 					beacon.addService(srv);
 
@@ -202,7 +199,7 @@ namespace dtn
 							char data[1500];
 							usbinterface iface = sock->interface;
 							stringstream ss;
-							ss << iface.vendor << "." << iface.product << "." << iface.serial;
+							ss << iface.bus << "." << iface.address << "." << iface.interface_num;
 							vaddress sender(ss.str(), "");
 
 							ssize_t len = 0;
@@ -274,11 +271,8 @@ namespace dtn
 					} catch (const vsocket_timeout &e) {
 						tv.tv_sec = 1;
 						tv.tv_usec = 0;
-						IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70)
-							<< e.what() << IBRCOMMON_LOGGER_ENDL;
 					} catch (const vsocket_interrupt &e) {
-						IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70)
-							<< e.what() << IBRCOMMON_LOGGER_ENDL;
+						IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
 					}
 				}
 			} catch (std::exception &e) {
@@ -296,18 +290,14 @@ namespace dtn
 			usbinterface iface = sock.interface;
 			if (beacon.isShort())
 			{
-				/* generate EID */
-				stringstream ss;
-				ss << iface.vendor;
-				ss << iface.product;
-				ss << iface.interface_num;
-				beacon.setEID(dtn::data::EID("usb://[" + ss.str()));
+				std::stringstream ss;
+				ss << "usb://[" << sock.interface.toString() << "]";
+				beacon.setEID(dtn::data::EID(ss.str()));
 
 				/* add this CL if list is empty */
 				ss.flush();
 				ss << "usb="
-				   << "host-mode"
-				   << ";vendor=" << iface.vendor << ";product=" << iface.product << ";serial=" << iface.serial;
+				   << "host-mode";
 				beacon.addService(dtn::net::DiscoveryService(dtn::core::Node::CONN_DGRAM_USB, ss.str()));
 			}
 
@@ -425,6 +415,7 @@ namespace dtn
 				usbsocket *sock = new usbsocket(iface, _endpointIn, _endpointOut, 1000);
 				sock->up();
 				_vsocket.add(sock, iface);
+				IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", info) << "obtained new socket" << IBRCOMMON_LOGGER_ENDL;
 			}
 			catch (const socket_exception &)
 			{

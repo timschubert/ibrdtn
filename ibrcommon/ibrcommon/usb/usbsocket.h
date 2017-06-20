@@ -60,8 +60,8 @@ namespace ibrcommon
 		virtual ssize_t recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw (socket_exception);
 		virtual void sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw (socket_exception);
 
-		bool operator==(const usbsocket& rhs);
-		bool operator!=(const usbsocket& rhs);
+		bool operator==(const usbsocket& rhs) const;
+		bool operator!=(const usbsocket& rhs) const;
 	private:
 		/**
 		 * this fd is written to if usb can read something

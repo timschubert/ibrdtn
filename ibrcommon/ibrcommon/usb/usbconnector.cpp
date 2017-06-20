@@ -27,7 +27,7 @@
 
 namespace ibrcommon
 {
-	usbconnector::usb_device_cb_registration::usb_device_cb_registration(const uint16_t &_vendor, const uint16_t &_product, const uint8_t &_interface_num,
+	usbconnector::usb_device_cb_registration::usb_device_cb_registration(const int &_vendor, const int &_product, const int &_interface_num,
 	                                                                     const libusb_hotplug_callback_handle *_handle)
 	 : vendor_id(_vendor), product_id(_product), interface(_interface_num), handle(_handle)
 	{
@@ -35,52 +35,50 @@ namespace ibrcommon
 
 	int usbconnector::libusb_hotplug_cb(struct libusb_context *ctx, libusb_device *device, libusb_hotplug_event event, void *cb)
 	{
+		static Mutex _device_handles_lock;
+		static std::map<std::string, libusb_device_handle *> _device_handles;
+
 		usb_device_cb *call_this = static_cast<usb_device_cb *>(cb);
-		libusb_device_handle *handle;
-		int err = libusb_open(device, &handle);
-		if (err)
+		libusb_device_handle *handle = NULL;
+
+		uint8_t bus_num = libusb_get_bus_number(device);
+		uint8_t bus_addr = libusb_get_device_address(device);
+
+		std::stringstream ss; ss << bus_addr << "." << DEFAULT_INTERFACE << "@" << bus_num;
+		std::string name = ss.str();
+
+		if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event)
 		{
-			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90) << "failed to open device" << IBRCOMMON_LOGGER_ENDL;
-			return -1;
+			int err = libusb_open(device, &handle);
+			if (err)
+			{
+				IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90) << usb_error_string(err) << IBRCOMMON_LOGGER_ENDL;
+				return -1;
+			}
+
+			_device_handles[name] = handle;
+
+			usbinterface iface(name, handle, bus_num, bus_addr, DEFAULT_INTERFACE);
+			iface.set_up();
+			call_this->interface_discovered(iface);
+		}
+		else if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT)
+		{
+			MutexLock l(_device_handles_lock);
+			const auto &found_handle = _device_handles.find(name);
+			if (found_handle != _device_handles.end())
+			{
+				libusb_close(found_handle->second);
+				found_handle->second = NULL;
+			}
+			usbinterface iface(name, NULL, bus_num, bus_addr, DEFAULT_INTERFACE);
+			call_this->interface_lost(iface);
 		}
 
-		uint8_t busnum = libusb_get_bus_number(device);
-		uint8_t address = libusb_get_device_address(device);
-		std::stringstream s;
-		s << "usb" << ':' << busnum << ':' << address;
-		std::string iface_name = s.str();
-		libusb_device_descriptor desc = {};
-		err = libusb_get_device_descriptor(device, &desc);
-		if (err)
-		{
-			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90) << libusb_error(err) << IBRCOMMON_LOGGER_ENDL;
-			return -1;
-		}
-
-		unsigned char serial[200];
-		err = libusb_get_string_descriptor_ascii(handle, desc.iSerialNumber, serial, 200);
-		if (err)
-		{
-			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::libusb_hotplug_cb", 90) << libusb_error(err) << IBRCOMMON_LOGGER_ENDL;
-			return -1;
-		}
-		std::stringstream ss;
-		ss << serial;
-		usbinterface iface(iface_name, handle, DEFAULT_INTERFACE, desc.idVendor, desc.idProduct, ss.str());
-
-		switch (event)
-		{
-			case LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED:
-				call_this->interface_discovered(iface);
-				break;
-			case LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT:
-				call_this->interface_lost(iface);
-				break;
-		}
 		return 0;
 	}
 
-	usbconnector::usb_device_cb_registration *usbconnector::register_device_cb(usb_device_cb *cb, uint16_t vendor, uint16_t product, uint8_t interface)
+	usbconnector::usb_device_cb_registration *usbconnector::register_device_cb(usb_device_cb *cb, int vendor, int product, int interface)
 	{
 		if (vendor == 0)
 		{
@@ -185,13 +183,11 @@ namespace ibrcommon
 		{
 			/* let libusb handle its internal events */
 			libusb_handle_events_timeout_completed(_usb_context, &zero_timeout, &lock);
-			// IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::run", 80) << "timeout" << IBRCOMMON_LOGGER_ENDL;
 		}
 		else
 		{
 			/* let libusb handle its internal events */
 			libusb_handle_events_timeout_completed(_usb_context, &zero_timeout, &lock);
-			// IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector::run", 80) << "activity" << IBRCOMMON_LOGGER_ENDL;
 		}
 	}
 
@@ -278,7 +274,7 @@ namespace ibrcommon
 		libusb_exit(_usb_context);
 	}
 
-	libusb_device_handle *usbconnector::usb_discover(const uint16_t &vendor, const uint16_t &product)
+	libusb_device_handle *usbconnector::usb_discover(const int &vendor, const int &product)
 	{
 		/* TODO maybe use libusb_hotplug_flag::LIBUSB_HOTPLUG_ENUMERATE */
 
@@ -316,7 +312,7 @@ namespace ibrcommon
 		return _cap_hotplug;
 	}
 
-	void matchDevice(uint16_t vendor, uint16_t product, uint8_t interface)
+	void matchDevice(int vendor, int product, int interface)
 	{
 	}
 }

@@ -82,9 +82,9 @@ namespace dtn
 				int mtu;
 				int port;
 
-				uint16_t vendor;
-				uint16_t product;
-				uint8_t interface_num;
+				int vendor;
+				int product;
+				int interface_num;
 				uint8_t endpoint_in;
 				uint8_t endpoint_out;
 			};
