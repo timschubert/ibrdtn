@@ -109,8 +109,14 @@ namespace dtn
 		USBTransferService::~USBTransferService()
 		{
 			_run = false;
-			this->stop();
-			this->join();
+			try
+			{
+				this->stop();
+				this->join();
+			} catch (const ibrcommon::ThreadException &e)
+			{
+				IBRCOMMON_LOGGER_DEBUG_TAG("USBTransferService", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
+			}
 
 			_tasks.reset();
 			while (!_tasks.empty())

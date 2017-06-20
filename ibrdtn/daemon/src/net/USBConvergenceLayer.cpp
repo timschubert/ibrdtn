@@ -41,9 +41,16 @@ namespace dtn
 
 		USBConvergenceLayer::~USBConvergenceLayer()
 		{
-			_run = false;
-			this->stop();
-			this->join();
+			//_run = false;
+			try
+			{
+				this->stop();
+				this->join();
+			} catch (const ThreadException &e)
+			{
+				IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 90) << e.what() << IBRCOMMON_LOGGER_ENDL;
+			}
+
 			_con.unregister_device_cb(this, _cb_registration);
 
 			delete _usb;
@@ -63,6 +70,7 @@ namespace dtn
 					delete con;
 				}
 			}
+			IBRCOMMON_LOGGER_DEBUG_TAG("NOPE", 90) << "WHATWHATWHAT" << IBRCOMMON_LOGGER_ENDL;
 		}
 
 		dtn::core::Node::Protocol USBConvergenceLayer::getDiscoveryProtocol() const
@@ -180,107 +188,101 @@ namespace dtn
 
 		void USBConvergenceLayer::componentRun() throw()
 		{
+			try {
+				struct timeval tv;
+				tv.tv_sec = 1;
+				tv.tv_usec = 0;
 
-			struct timeval tv;
-			tv.tv_sec = 1;
-			tv.tv_usec = 0;
+				while (_run) {
+					socketset fds;
+					try {
+						_vsocket.select(&fds, NULL, NULL, &tv);
+						for (auto &fd : fds) {
+							usbsocket *sock = dynamic_cast<usbsocket *>(fd);
+							char data[1500];
+							usbinterface iface = sock->interface;
+							stringstream ss;
+							ss << iface.vendor << "." << iface.product << "." << iface.serial;
+							vaddress sender(ss.str(), "");
 
-			while (_run)
-			{
-				socketset fds;
-				try
-				{
-					_vsocket.select(&fds, NULL, NULL, &tv);
-					for (auto &fd : fds)
-					{
-						usbsocket *sock = dynamic_cast<usbsocket *>(fd);
-						char data[1500];
-						usbinterface iface = sock->interface;
-						stringstream ss;
-						ss << iface.vendor << "." << iface.product << "." << iface.serial;
-						vaddress sender(ss.str(), "");
-
-						ssize_t len = 0;
-						try
-						{
-							len = sock->recvfrom(data, 1500, 0, sender);
-							if (len < 0)
+							ssize_t len = 0;
+							try {
+								len = sock->recvfrom(data, 1500, 0, sender);
+								if (len < 0) continue;
+							} catch (socket_exception &e) {
+								IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70)
+									<< e.what() << IBRCOMMON_LOGGER_ENDL;
 								continue;
-						}
-						catch (socket_exception &e)
-						{
-							IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
-							continue;
-						}
+							}
 
-						ss.flush();
-						ss.write(data, len);
+							ss.flush();
+							ss.write(data, len);
 
-						try
-						{
-							/* parse header */
-							uint8_t header = 0;
-							ss >> header;
+							try {
+								/* parse header */
+								uint8_t header = 0;
+								ss >> header;
 
-							/* find header and parse */
-							const int flags = (header & USBConvergenceLayerMask::FLAGS);
-							const int seqnr = (header & USBConvergenceLayerMask::SEQNO) >> 2;
+								/* find header and parse */
+								const int flags = (header & USBConvergenceLayerMask::FLAGS);
+								const int seqnr = (header & USBConvergenceLayerMask::SEQNO) >> 2;
 
-							DiscoveryBeacon beacon = dtn::core::BundleCore::getInstance().getDiscoveryAgent().obtainBeacon();
+								DiscoveryBeacon beacon = dtn::core::BundleCore::getInstance().getDiscoveryAgent().obtainBeacon();
 
-							switch (header & USBConvergenceLayerMask::TYPE)
-							{
-								case USBConvergenceLayerType::DATA:
+								switch (header & USBConvergenceLayerMask::TYPE) {
+									case USBConvergenceLayerType::DATA:
 									IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", info)
-									  << "Incoming data frame (seqnr = " << seqnr << ") from " << iface.interface_num << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
-									// TODO submit bundle event
+										<< "Incoming data frame (seqnr = " << seqnr << ") from " << iface.interface_num << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
+										// TODO submit bundle event
 									break;
 
-								case USBConvergenceLayerType::DISCOVERY:
+									case USBConvergenceLayerType::DISCOVERY:
 									IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", info)
-									  << "Incoming discovery (seqnr = " << seqnr << ") from " << iface.interface_num << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
+										<< "Incoming discovery (seqnr = " << seqnr << ") from " << iface.interface_num << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
 									ss >> beacon;
 									handle_discovery(beacon, *sock);
 									break;
 
-								case USBConvergenceLayerType::ACK:
-									IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", info) << "Incoming acknowledgment (seqnr = " << seqnr << ") from "
-									                                                  << iface.interface_num << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
-									// TODO
+									case USBConvergenceLayerType::ACK:
+									IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", info)
+										<< "Incoming acknowledgment (seqnr = " << seqnr << ") from " << iface.interface_num << sock->ep_in
+												<< IBRCOMMON_LOGGER_ENDL;
+										// TODO
 									break;
 
-								case USBConvergenceLayerType::NACK:
-									IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", info) << "Incoming negative acknowledgment (seqnr = " << seqnr << ") from "
-									                                                  << iface.interface_num << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
-									// TODO
+									case USBConvergenceLayerType::NACK:
+									IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", info)
+										<< "Incoming negative acknowledgment (seqnr = " << seqnr << ") from " << iface.interface_num << sock->ep_in
+												<< IBRCOMMON_LOGGER_ENDL;
+										// TODO
 									break;
 
-								default:
-									IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", warning) << "Incoming data not recognized (seqnr = " << seqnr << ") from "
-									                                                     << iface.interface_num << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
+									default:
+									IBRCOMMON_LOGGER_TAG("USBConvergenceLayer", warning)
+										<< "Incoming data not recognized (seqnr = " << seqnr << ") from " << iface.interface_num << sock->ep_in
+												<< IBRCOMMON_LOGGER_ENDL;
 									break;
+								}
+							} catch (const dtn::InvalidDataException &e) {
+								IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70)
+									<< e.what() << IBRCOMMON_LOGGER_ENDL;
+							} catch (const IOException &e) {
+								IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70)
+									<< e.what() << IBRCOMMON_LOGGER_ENDL;
 							}
 						}
-						catch (const dtn::InvalidDataException &e)
-						{
-							IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
-						}
-						catch (const IOException &e)
-						{
-							IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
-						}
+					} catch (const vsocket_timeout &e) {
+						tv.tv_sec = 1;
+						tv.tv_usec = 0;
+						IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70)
+							<< e.what() << IBRCOMMON_LOGGER_ENDL;
+					} catch (const vsocket_interrupt &e) {
+						IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70)
+							<< e.what() << IBRCOMMON_LOGGER_ENDL;
 					}
 				}
-				catch (const vsocket_timeout &e)
-				{
-					tv.tv_sec = 1;
-					tv.tv_usec = 0;
-					IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
-				}
-				catch (const vsocket_interrupt &e)
-				{
-					IBRCOMMON_LOGGER_DEBUG_TAG("USBConvergenceLayer", 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
-				}
+			} catch (std::exception &e) {
+				/* ignore all other errors */
 			}
 		}
 

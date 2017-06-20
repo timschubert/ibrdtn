@@ -33,16 +33,22 @@ namespace dtn
 
 		USBService::~USBService()
 		{
+			_run = false;
 			this->stop();
 			this->join();
 		}
 
 		void USBService::run(void) throw ()
 		{
-			while (_run)
+			try
 			{
-				_con.usb_loop();
-				yield();
+				while (_run)
+				{
+					_con.usb_loop();
+				}
+			} catch (const std::exception &e)
+			{
+				IBRCOMMON_LOGGER_DEBUG_TAG("USBService", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
 			}
 		}
 
