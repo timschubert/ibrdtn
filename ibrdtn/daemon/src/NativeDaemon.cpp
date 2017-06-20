@@ -1477,7 +1477,7 @@ namespace dtn
 						}
 #endif
 
-#ifdef IBRCOMMON_SUPPORT_USB
+#ifdef HAVE_USB
 						case dtn::daemon::Configuration::NetConfig::NETWORK_DGRAM_USB:
 						{
 							try

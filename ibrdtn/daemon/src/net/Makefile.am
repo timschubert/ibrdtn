@@ -72,7 +72,7 @@ net_SOURCES += EMailConvergenceLayer.cpp EMailConvergenceLayer.h
 net_SOURCES += EMailSmtpService.cpp EMailSmtpService.h EMailImapService.cpp EMailImapService.h
 endif
 
-if USB
+if HAVE_USB
 net_SOURCES += USBConvergenceLayer.h USBTransferService.h USBService.h
 net_SOURCES += USBConvergenceLayer.cpp USBTransferService.cpp USBService.cpp
 endif

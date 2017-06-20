@@ -388,11 +388,28 @@ ANDROID_AC_BUILD([
 	dnl -----------------------------------------------
 
 	AC_CHECK_IBRCOMMON_USB([
-		use_usb="yes"
+		have_usb="yes"
 	], [
-		AC_MSG_WARN([ibrcommon was compiled without libusb support. USB convergence layers are disabled.])
-		use_usb="no"
+		have_usb="no"
 	])
+
+	AC_ARG_WITH([usb], AS_HELP_STRING([--without-usb], [Build without usb support]),
+		[],
+		[with_usb=no]
+	)
+
+	AS_IF([test "x$with_usb" != xno], [
+		AS_IF([test "x$have_usb" != xyes], [
+			AC_MSG_FAILURE([USB convergence layer disabled because ibrcommon was compiled without USB support])
+		], [
+		   with_usb=yes
+		   AC_DEFINE(HAVE_USB, [1], [USB Convergence Layer is available])
+		   AC_MSG_NOTICE([USB convergence layer is enabled])
+		])
+	], [
+	   AC_MSG_WARN([USB convergence layer is disabled])
+	])
+
 
 	dnl -----------------------------------------------
 	dnl check for regex capabilities
@@ -417,7 +434,7 @@ AM_CONDITIONAL(REGEX, test x$have_regex = xyes)
 AM_CONDITIONAL(ANDROID, test x$enable_android = xyes)
 AM_CONDITIONAL(WIFIP2P, test x$with_wifi_p2p = xyes)
 AM_CONDITIONAL(VMIME, test x$with_vmime = xyes)
-AM_CONDITIONAL(USB, test x$with_usb = xyes)
+AM_CONDITIONAL(HAVE_USB, test x$with_usb = xyes)
 AM_CONDITIONAL(WIN32, test x$enable_win32 = xyes)
 AM_CONDITIONAL(WIN32_NTSERVICE, test x$enable_ntservice = xyes)
 AM_CONDITIONAL(OPENSSL_JPAKE, test x$with_jpake = xyes)
