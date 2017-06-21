@@ -55,6 +55,8 @@ namespace dtn
 		                            public dtn::daemon::IndependentComponent
 		{
 		public:
+			static const std::string TAG;
+
 			USBConvergenceLayer(uint16_t vendor, uint16_t product, uint8_t inerfaceNum, uint8_t endpointIn, uint8_t endpointOut);
 
 			/** @see ConvergenceLayer */
@@ -150,7 +152,8 @@ namespace dtn
 			/**
 			 * callback registration for hotplug
 			 */
-			usbconnector::usb_device_cb_registration *_cb_registration;
+			//usbconnector::usb_device_cb_registration *_cb_registration;
+			usbinterface _interface;
 		};
 	}
 }

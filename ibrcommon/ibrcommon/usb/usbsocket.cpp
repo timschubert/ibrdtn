@@ -36,7 +36,7 @@ namespace ibrcommon
 		delete _buf;
 	}
 
-	usbsocket::usbsocket(const usbinterface &iface, const char &endpoint_in, const char &endpoint_out, size_t buflen)
+	usbsocket::usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, size_t buflen)
 			: ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _input(buflen, 0)
 	{
 		basesocket::_state = SOCKET_DOWN;
@@ -48,44 +48,52 @@ namespace ibrcommon
 
 	void usbsocket::up() throw (socket_exception)
 	{
-		/* allocate a stream for each endpoint */
-		uint8_t eps[] = {ep_in, ep_out};
-		int err = libusb_alloc_streams(interface.device(), 1, eps, 2);
-		if (err < 0)
+		if (basesocket::_state != SOCKET_UP)
 		{
-			throw socket_exception(usb_error_string(err));
-		}
-		int fds[2];
-		err = ::pipe(fds);
-		if (err)
-		{
-			throw socket_exception("Failed to create pipe.");
-		}
-		_input._fd = fds[0];
-		basesocket::_fd = fds[1];
-		basesocket::_state = SOCKET_UP;
+			/* allocate a stream for each endpoint */
+			uint8_t eps[] = {ep_in, ep_out};
+			//int err = libusb_alloc_streams(interface.device(), 1, eps, 2);
+			//if (err < 0)
+			//{
+			//	std::stringstream ss;
+			//	ss << usb_error_string(err);
+			//	throw socket_exception(ss.str());
+			//}
+			int fds[2];
+			int err = ::pipe(fds);
+			if (err)
+			{
+				throw socket_exception("Failed to create pipe.");
+			}
+			_input._fd = fds[0];
+			basesocket::_fd = fds[1];
+			basesocket::_state = SOCKET_UP;
 
-		/* prep the buffer with one pending transfer */
-		if (!prepare_transfer((unsigned char *) _input._buf, _input._len, interface.device(), ep_in, 0, &_input))
-		{
-			throw socket_exception("Failed to prepare new transfer.");
+			/* prep the buffer with one pending transfer */
+			if (!prepare_transfer((uint8_t *) _input._buf, _input._len, interface.device(), ep_in, 0, &_input))
+			{
+				throw socket_exception("Failed to prepare new transfer.");
+			}
 		}
 	}
 
 	void usbsocket::down() throw (socket_exception)
 	{
-		uint8_t eps[] = {ep_in, ep_out};
-		int err = libusb_free_streams(interface.device(), eps, 2);
-		if (err)
+		if (basesocket::_state != SOCKET_DOWN)
 		{
-			throw socket_exception(usb_error_string(err));
+			uint8_t eps[] = {ep_in, ep_out};
+			//int err = libusb_free_streams(interface.device(), eps, 2);
+			//if (err)
+			//{
+			//	throw socket_exception(usb_error_string(err));
+			//}
+			basesocket::_state = SOCKET_DOWN;
+			::close(_input._fd);
+			::close (_fd);
 		}
-		basesocket::_state = SOCKET_DOWN;
-		::close(_input._fd);
-		::close (_fd);
 	}
 
-	bool usbsocket::prepare_transfer(unsigned char *buf, int buflen, libusb_device_handle *handle, unsigned char endpoint, uint32_t stream_id, usbinput *input)
+	bool usbsocket::prepare_transfer(unsigned char *buf, int buflen, libusb_device_handle *handle, uint8_t endpoint, uint32_t stream_id, usbinput *input)
 	{
 		struct libusb_transfer *transfer = libusb_alloc_transfer(0);
 		if (!transfer)
@@ -93,11 +101,14 @@ namespace ibrcommon
 			return false;
 		}
 		// TODO use sensible timeout depending on bundle lifetime
-		libusb_fill_bulk_stream_transfer(transfer, handle, endpoint, stream_id, buf, buflen, transfer_completed_cb, (void *) &input, 1000);
+		//libusb_fill_bulk_stream_transfer(transfer, handle, endpoint, stream_id, buf, buflen, transfer_completed_cb, (void *) &input, 1000);
+		libusb_fill_bulk_transfer(transfer, handle, endpoint, buf, buflen, transfer_completed_cb, (void *) &input, 1000);
 		int err = libusb_submit_transfer(transfer);
-		if (err)
+		if (err < 0)
 		{
-			throw USBError(static_cast<libusb_error>(err));
+			std::stringstream ss;
+			ss << usb_error_string(err);
+			return false;
 		}
 		return true;
 	}
@@ -122,7 +133,7 @@ namespace ibrcommon
 			/* prepare the buffer with one pending transfer */
 			if (!prepare_transfer(transfer->buffer, transfer->length, transfer->dev_handle, transfer->endpoint, 0, input))
 			{
-				IBRCOMMON_LOGGER_TAG("libsub", critical) << "Failed to prepare next transfer." << IBRCOMMON_LOGGER_ENDL;
+				IBRCOMMON_LOGGER_TAG("usbsocket", critical) << "Failed to prepare next transfer." << IBRCOMMON_LOGGER_ENDL;
 			}
 		}
 		else
@@ -139,7 +150,9 @@ namespace ibrcommon
 		int err = libusb_get_device_descriptor(device, descriptor);
 		if (err)
 		{
-			throw USBError(static_cast<libusb_error>(err));
+			std::stringstream ss;
+			ss << usb_error_string(err);
+			throw socket_error(ERROR_READ, ss.str());
 		}
 		else
 		{

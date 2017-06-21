@@ -49,13 +49,13 @@ namespace ibrcommon
 		const uint8_t ep_out;
 		const usbinterface interface;
 
-		usbsocket(const usbinterface &iface, const char &endpoint_in, const char &endpoint_out, size_t buflen);
+		usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, size_t buflen);
 		virtual ~usbsocket();
 
 		void up() throw (socket_exception);
 		void down() throw (socket_exception);
 
-		static bool prepare_transfer(unsigned char *buf, int buflen, libusb_device_handle *handle, unsigned char endpoint, uint32_t stream_id, usbinput *input);
+		static bool prepare_transfer(unsigned char *buf, int buflen, libusb_device_handle *handle, const uint8_t endpoint, uint32_t stream_id, usbinput *input);
 
 		virtual ssize_t recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw (socket_exception);
 		virtual void sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw (socket_exception);

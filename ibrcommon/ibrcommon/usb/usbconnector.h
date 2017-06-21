@@ -64,8 +64,8 @@ namespace ibrcommon
 		static void usb_fd_removed_callback(int fd, void *con);
 
 
-		libusb_device_handle *usb_discover(const int &vendor, const int &product);
 		bool hotplug();
+		usbinterface open(const int &vendor, const int &product);
 
 		usbconnector(usbconnector const &) = delete;
 		void operator=(usbconnector const &) = delete;

@@ -70,10 +70,10 @@ namespace ibrcommon
 			/* update the position of the free buffer */
 			char *buffer_begin = iend;
 			setp(buffer_begin, &out_buf_[0] + out_buf_len_ - 1);
-		} catch (USBError &e)
+		} catch (socket_error &e)
 		{
 			// TODO log error with logger
-			std::cerr << e.what() << std::endl;
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
 
 			// TODO abort if final failure condition
 			/* try again */
@@ -90,10 +90,10 @@ namespace ibrcommon
 		try
 		{
 			received = _sock.recvfrom(&_in_buf[0], _in_buf_len, 0, empty);
-		} catch (USBError &e)
+		} catch (socket_error &e)
 		{
 			// TODO logging
-			std::cerr << e.what() << std::endl;
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
 		}
 		setg(&_in_buf[0], &_in_buf[0], &_in_buf[received]);
 		return std::char_traits<char>::not_eof(_in_buf[0]);

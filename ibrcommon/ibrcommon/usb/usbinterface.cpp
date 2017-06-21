@@ -32,6 +32,21 @@ namespace ibrcommon
 	{
 	}
 
+	const uint8_t& usbinterface::get_bus() const
+	{
+		return bus;
+	}
+
+	const uint8_t& usbinterface::get_address() const
+	{
+		return address;
+	}
+
+	const uint8_t& usbinterface::get_interface_num() const
+	{
+		return interface_num;
+	}
+
 	void usbinterface::set_up()
 	{
 		int err = libusb_claim_interface(_device, interface_num);

@@ -59,7 +59,6 @@ namespace ibrcommon
 			_device_handles[name] = handle;
 
 			usbinterface iface(name, handle, bus_num, bus_addr, DEFAULT_INTERFACE);
-			iface.set_up();
 			call_this->interface_discovered(iface);
 		}
 		else if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT)
@@ -274,37 +273,24 @@ namespace ibrcommon
 		libusb_exit(_usb_context);
 	}
 
-	libusb_device_handle *usbconnector::usb_discover(const int &vendor, const int &product)
+	usbinterface usbconnector::open(const int &vendor, const int &product)
 	{
-		/* TODO maybe use libusb_hotplug_flag::LIBUSB_HOTPLUG_ENUMERATE */
-
-		/* get the device list */
-		libusb_device **dev_list;
-		int cnt_devices = libusb_get_device_list(_usb_context, &dev_list);
-		if (cnt_devices < 0)
+		libusb_device_handle *handle = libusb_open_device_with_vid_pid(_usb_context, vendor, product);
+		if (handle == NULL)
 		{
-			throw USBError(static_cast<libusb_error>(cnt_devices));
+			throw USBError("Failed to open device.");
 		}
 
-		libusb_device *found = NULL;
-		libusb_device_handle *found_handle = NULL;
-		for (ssize_t i = 0; i < cnt_devices; i++)
-		{
-			libusb_device *device = dev_list[i];
-			libusb_device_descriptor desc = {};
-			libusb_get_device_descriptor(device, &desc);
-			if (desc.idVendor == vendor && desc.idVendor == product)
-			{
-				int err = libusb_open(device, &found_handle);
-				if (err)
-				{
-					throw USBError(static_cast<libusb_error>(err));
-				}
-				break;
-			}
-		}
-		libusb_free_device_list(dev_list, 1);
-		return found_handle;
+		libusb_device *device = libusb_get_device(handle);
+		uint8_t bus_num = libusb_get_bus_number(device);
+		uint8_t bus_addr = libusb_get_device_address(device);
+
+		std::stringstream ss; ss << bus_addr << "." << DEFAULT_INTERFACE << "@" << bus_num;
+		std::string name = ss.str();
+
+		usbinterface iface(name, handle, bus_num, bus_addr, DEFAULT_INTERFACE);
+
+		return iface;
 	}
 
 	bool usbconnector::hotplug()

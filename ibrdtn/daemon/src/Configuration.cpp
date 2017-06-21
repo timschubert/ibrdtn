@@ -897,8 +897,8 @@ namespace dtn
 						nc.vendor = conf.read<int>(key_vendor, 0x483);
 						nc.product = conf.read<int>(key_product, 0x1df8);
 						nc.interface_num = conf.read<int>(key_interface_num, 11);
-						nc.endpoint_in = conf.read<uint8_t>(key_endpoint_in, 1);
-						nc.endpoint_out = conf.read<uint8_t>(key_endpoint_out, 81);
+						nc.endpoint_in = conf.read<int>(key_endpoint_in, 1);
+						nc.endpoint_out = conf.read<int>(key_endpoint_out, 81);
 						break;
 					}
 

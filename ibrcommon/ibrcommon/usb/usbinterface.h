@@ -35,17 +35,14 @@ namespace ibrcommon
 	{
 	public:
 		USBError(libusb_error e)
-				: _e(e)
 		{
+			Exception(usb_error_string(e));
 		}
 
-		virtual const char *what() const throw ()
+		USBError(const char *msg)
+				: Exception(msg)
 		{
-			return usb_error_string(_e);
 		}
-
-	private:
-		libusb_error _e;
 	};
 
 	class usbinterface: public vinterface
@@ -62,22 +59,25 @@ namespace ibrcommon
 			virtual void event_link_down(usbinterface &iface) = 0;
 		};
 
-		const uint8_t bus;
-		const uint8_t address;
-		const uint8_t interface_num;
-
 		usbinterface(const std::string &name, libusb_device_handle *device, const uint8_t &bus, const uint8_t &address, const uint8_t &interface);
 		virtual ~usbinterface();
 
 		void set_up();
 		void set_down();
+
 		libusb_device_handle *device() const;
+		const uint8_t& get_bus() const ;
+		const uint8_t& get_address() const;
+		const uint8_t& get_interface_num() const;
 
 		bool operator==(const usbinterface& rhs) const;
 		bool operator!=(const usbinterface& rhs) const;
 
 	private:
 		libusb_device_handle *_device;
+		uint8_t bus;
+		uint8_t address;
+		uint8_t interface_num;
 	};
 }
 
