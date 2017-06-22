@@ -75,7 +75,6 @@ namespace dtn
 				}
 			}
 
-			_interface.set_down();
 		}
 
 		dtn::core::Node::Protocol USBConvergenceLayer::getDiscoveryProtocol() const
@@ -166,6 +165,15 @@ namespace dtn
 
 		void USBConvergenceLayer::componentUp() throw()
 		{
+			try
+			{
+				_interface.set_up();
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "Claimed device " << _interface.toString() << IBRCOMMON_LOGGER_ENDL;
+			}
+			catch (USBError &e)
+			{
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "Failed to claim device. " << e.what() << IBRCOMMON_LOGGER_ENDL;
+			}
 			/* register as discovery beacon handler */
 			dtn::core::BundleCore::getInstance().getDiscoveryAgent().registerService(_interface, this);
 
@@ -178,6 +186,17 @@ namespace dtn
 
 			/* un-register as discovery beacon handler */
 			dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(_interface, this);
+
+			try
+			{
+				_interface.set_up();
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "Unclaimed device " << _interface.toString() << IBRCOMMON_LOGGER_ENDL;
+			}
+			catch (USBError &e)
+			{
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "Failed to unclaim device. " << e.what() << IBRCOMMON_LOGGER_ENDL;
+			}
+
 		}
 
 		void USBConvergenceLayer::componentRun() throw()
@@ -422,7 +441,6 @@ namespace dtn
 			catch (const socket_exception &e)
 			{
 				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
-				iface.set_down();
 			}
 		}
 
@@ -430,7 +448,6 @@ namespace dtn
 		{
 			try
 			{
-				iface.set_up();
 				addSocket(iface);
 			}
 			catch (USBError &e)
@@ -495,7 +512,6 @@ namespace dtn
 				catch (socket_error &e)
 				{
 					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
-					iface.set_down();
 				}
 			}
 		}

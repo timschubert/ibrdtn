@@ -53,11 +53,15 @@ namespace ibrcommon
 
 			/* prepare the buffer with one pending transfer */
 			uint8_t *transfer_buffer = new uint8_t[1000];
-			if (!prepare_transfer(transfer_buffer, 1000, interface.device(), ep_in,
-					(LIBUSB_TRANSFER_SHORT_NOT_OK),
-					transfer_in_cb))
+			try
 			{
-				throw socket_exception("Failed to prepare initial transfer.");
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Preparing initial transfer" << IBRCOMMON_LOGGER_ENDL;
+				prepare_transfer(transfer_buffer, 1000, interface.device(), ep_in, LIBUSB_TRANSFER_SHORT_NOT_OK, transfer_in_cb);
+			}
+			catch (USBError &e)
+			{
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
+				throw socket_exception("Failed to submit initial transfer.");
 			}
 		}
 	}
@@ -159,17 +163,12 @@ namespace ibrcommon
 
 		try
 		{
-			prepare_transfer(next_transfer->buffer,
-					next_transfer->length,
-					interface.device(),
-					ep_in,
-					LIBUSB_TRANSFER_SHORT_NOT_OK,
-					(libusb_transfer_cb_fn) transfer_out_cb);
+			prepare_transfer(next_transfer->buffer, next_transfer->length, interface.device(), ep_in, LIBUSB_TRANSFER_SHORT_NOT_OK, (libusb_transfer_cb_fn) transfer_out_cb);
 		}
 		catch (USBError &e)
 		{
 			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
-			throw socket_exception("Failed to prepare new transfer while receiving.");
+			throw socket_exception("Failed to submit new transfer while receiving.");
 		}
 
 		return next_transfer->actual_length;
@@ -182,17 +181,12 @@ namespace ibrcommon
 
 		try
 		{
-			prepare_transfer(transfer_buffer,
-					buflen,
-					interface.device(),
-					ep_out,
-					LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER,
-					(libusb_transfer_cb_fn) transfer_out_cb);
+			prepare_transfer(transfer_buffer, buflen, interface.device(), ep_out, LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER, (libusb_transfer_cb_fn) transfer_out_cb);
 		}
 		catch (USBError &e)
 		{
 			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
-			throw socket_exception("Failed to prepare new transfer while sending.");
+			throw socket_exception("Failed to submit new transfer while sending.");
 		}
 	}
 

@@ -44,7 +44,7 @@ namespace ibrcommon
 		uint8_t bus_num = libusb_get_bus_number(device);
 		uint8_t bus_addr = libusb_get_device_address(device);
 
-		std::stringstream ss; ss << bus_addr << "." << DEFAULT_INTERFACE << "@" << bus_num;
+		std::stringstream ss; ss << (int) bus_addr << "." << DEFAULT_INTERFACE << "@" << (int) bus_num;
 		std::string name = ss.str();
 
 		if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event)
@@ -285,7 +285,7 @@ namespace ibrcommon
 		uint8_t bus_num = libusb_get_bus_number(device);
 		uint8_t bus_addr = libusb_get_device_address(device);
 
-		std::stringstream ss; ss << bus_addr << "." << DEFAULT_INTERFACE << "@" << bus_num;
+		std::stringstream ss; ss << (int) bus_addr << "." << DEFAULT_INTERFACE << "@" << (int) bus_num;
 		std::string name = ss.str();
 
 		usbinterface iface(name, handle, bus_num, bus_addr, DEFAULT_INTERFACE);

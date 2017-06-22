@@ -62,9 +62,6 @@ namespace ibrcommon
 		usbinterface(const std::string &name, libusb_device_handle *device, const uint8_t &bus, const uint8_t &address, const uint8_t &interface);
 		virtual ~usbinterface();
 
-		void set_up();
-		void set_down();
-
 		libusb_device_handle *device() const;
 		const uint8_t& get_bus() const ;
 		const uint8_t& get_address() const;
@@ -72,6 +69,9 @@ namespace ibrcommon
 
 		bool operator==(const usbinterface& rhs) const;
 		bool operator!=(const usbinterface& rhs) const;
+
+		void set_up();
+		void set_down();
 
 	private:
 		libusb_device_handle *_device;
