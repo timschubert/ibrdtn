@@ -23,10 +23,12 @@
 #define USBSOCKET_H_
 
 #include "usbinterface.h"
+#include "ibrcommon/thread/Queue.h"
 #include "ibrcommon/net/socket.h"
 #include "ibrcommon/net/socketstream.h"
 #include "ibrcommon/Logger.h"
 #include <libusb-1.0/libusb.h>
+#include <algorithm>
 #include <unistd.h>
 
 namespace ibrcommon
@@ -34,42 +36,32 @@ namespace ibrcommon
 	class usbsocket: public datagramsocket
 	{
 	public:
-		class usbinput
-		{
-		public:
-			usbinput(size_t len, int fd);
-			~usbinput();
-			char *_buf;
-			size_t _len;
-			size_t _actual_len;
-			int _fd;
-		};
-
 		const uint8_t ep_in;
 		const uint8_t ep_out;
 		const usbinterface interface;
 
-		usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, size_t buflen);
+		usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, size_t queue_size);
 		virtual ~usbsocket();
 
 		void up() throw (socket_exception);
 		void down() throw (socket_exception);
 
-		static bool prepare_transfer(unsigned char *buf, int buflen, libusb_device_handle *handle, const uint8_t endpoint, uint32_t stream_id, usbinput *input);
+		bool prepare_transfer(uint8_t *buf, int buflen, libusb_device_handle *handle, const uint8_t endpoint, int flags, libusb_transfer_cb_fn cb);
 
 		virtual ssize_t recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw (socket_exception);
 		virtual void sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw (socket_exception);
 
 		bool operator==(const usbsocket& rhs) const;
 		bool operator!=(const usbsocket& rhs) const;
+
 	private:
-		/**
-		 * this fd is written to if usb can read something
-		 */
-		usbinput _input;
+		Queue<libusb_transfer *> _input;
+		size_t _max_queue_size;
+		int _pipe_trick;
 
 		static void usb_send(struct libusb_device_handle *handle, uint8_t *message, int length, libusb_transfer_cb_fn cb);
-		static void transfer_completed_cb(struct libusb_transfer *transfer);
+		static void transfer_in_cb(struct libusb_transfer *transfer);
+		static void transfer_out_cb(struct libusb_transfer *transfer);
 	};
 }
 
