@@ -26,7 +26,7 @@
 #include <libusb-1.0/libusb.h>
 
 #ifndef usb_error_string
-#define usb_error_string(e) libusb_strerror((enum libusb_error) e)
+#define usb_error_string(e) libusb_strerror((libusb_error) e)
 #endif
 
 namespace ibrcommon
@@ -34,9 +34,9 @@ namespace ibrcommon
 	class USBError: public ibrcommon::Exception
 	{
 	public:
-		USBError(libusb_error e)
+		USBError(int e)
+		 : Exception(usb_error_string(e))
 		{
-			Exception(usb_error_string(e));
 		}
 
 		USBError(const char *msg)

@@ -23,6 +23,8 @@
 
 namespace ibrcommon
 {
+	const std::string usbsocket::TAG = "usbsocket";
+
 	usbsocket::usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, size_t queue_size)
 			: ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _max_queue_size(queue_size)
 	{
@@ -34,8 +36,8 @@ namespace ibrcommon
 			throw socket_exception("Failed to create pipe.");
 		}
 
-		basesocket::_fd = fds[0];
-		_pipe_trick = fds[1];
+		_pipe_trick = fds[0];
+		datagramsocket::_fd = fds[1];
 	}
 
 	usbsocket::~usbsocket()
@@ -81,9 +83,7 @@ namespace ibrcommon
 		int err = libusb_submit_transfer(transfer);
 		if (err < 0)
 		{
-			std::stringstream ss;
-			ss << usb_error_string(err);
-			return false;
+			throw USBError(err);
 		}
 		return true;
 	}
@@ -102,7 +102,6 @@ namespace ibrcommon
 		{
 			IBRCOMMON_LOGGER_TAG("usbtransfer", warning) << "Failed to signal new data" << IBRCOMMON_LOGGER_ENDL;
 		}
-
 	}
 
 	void usbsocket::transfer_out_cb(struct libusb_transfer *transfer)
@@ -158,13 +157,18 @@ namespace ibrcommon
 		/* does not free the buffer, so we can reuse it */
 		libusb_free_transfer(next_transfer);
 
-		if (!prepare_transfer(next_transfer->buffer,
-				next_transfer->length,
-				interface.device(),
-				ep_in,
-				LIBUSB_TRANSFER_SHORT_NOT_OK,
-				(libusb_transfer_cb_fn) transfer_out_cb))
+		try
 		{
+			prepare_transfer(next_transfer->buffer,
+					next_transfer->length,
+					interface.device(),
+					ep_in,
+					LIBUSB_TRANSFER_SHORT_NOT_OK,
+					(libusb_transfer_cb_fn) transfer_out_cb);
+		}
+		catch (USBError &e)
+		{
+			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
 			throw socket_exception("Failed to prepare new transfer while receiving.");
 		}
 
@@ -176,13 +180,18 @@ namespace ibrcommon
 		uint8_t *transfer_buffer = new uint8_t[buflen];
 		::memcpy(transfer_buffer, buf, buflen);
 
-		if (!prepare_transfer(transfer_buffer,
-				buflen,
-				interface.device(),
-				ep_out,
-				LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER,
-				(libusb_transfer_cb_fn) transfer_out_cb))
+		try
 		{
+			prepare_transfer(transfer_buffer,
+					buflen,
+					interface.device(),
+					ep_out,
+					LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER,
+					(libusb_transfer_cb_fn) transfer_out_cb);
+		}
+		catch (USBError &e)
+		{
+			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
 			throw socket_exception("Failed to prepare new transfer while sending.");
 		}
 	}

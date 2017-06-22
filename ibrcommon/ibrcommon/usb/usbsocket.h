@@ -55,6 +55,8 @@ namespace ibrcommon
 		bool operator!=(const usbsocket& rhs) const;
 
 	private:
+		static const std::string TAG;
+
 		Queue<libusb_transfer *> _input;
 		size_t _max_queue_size;
 		int _pipe_trick;

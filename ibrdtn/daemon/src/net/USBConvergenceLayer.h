@@ -68,7 +68,7 @@ namespace dtn
 
 			/** @see DiscoveryBeaconHandler */
 			virtual void onUpdateBeacon(const vinterface &iface, DiscoveryBeacon &beacon) throw(NoServiceHereException);
-			virtual void onAdvertiseBeacon(const vinterface &iface, DiscoveryBeacon &beacon) throw(NoServiceHereException);
+			virtual void onAdvertiseBeacon(const vinterface &iface, const DiscoveryBeacon &beacon) throw();
 
 			/** @see usbconnector::usb_device_cb */
 			virtual void interface_discovered(usbinterface &iface);
@@ -101,6 +101,11 @@ namespace dtn
 			 * Handle an incoming discovery beacon
 			 */
 			void handle_discovery(DiscoveryBeacon &beacon, usbsocket &sock);
+
+			/**
+			 * Add a socket to this convergence layer for an interface
+			 */
+			void addSocket(usbinterface &iface);
 
 		protected:
 			void __cancellation() throw();
