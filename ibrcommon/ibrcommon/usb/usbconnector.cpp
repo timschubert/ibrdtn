@@ -278,7 +278,7 @@ namespace ibrcommon
 		libusb_device_handle *handle = libusb_open_device_with_vid_pid(_usb_context, vendor, product);
 		if (handle == NULL)
 		{
-			throw USBError("Failed to open device.");
+			throw usb_device_error("Failed to open device.");
 		}
 
 		libusb_device *device = libusb_get_device(handle);

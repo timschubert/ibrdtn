@@ -33,6 +33,7 @@
 #include "ibrcommon/Logger.h"
 #include "ibrcommon/net/vaddress.h"
 #include "ibrcommon/net/vinterface.h"
+#include "ibrcommon/net/dgramheader.h"
 #include "ibrcommon/usb/usbconnector.h"
 #include "ibrcommon/usb/usbsocket.h"
 #include "ibrcommon/usb/usbstream.h"
@@ -72,7 +73,7 @@ namespace dtn
 
 			/** @see usbconnector::usb_device_cb */
 			virtual void interface_discovered(usbinterface &iface);
-			virtual void interface_lost(usbinterface &iface);
+			virtual void interface_lost(const usbinterface &iface);
 
 			void raiseEvent(const DiscoveryBeaconEvent &event) throw();
 			void raiseEvent(const NodeEvent &event) throw();
@@ -81,6 +82,11 @@ namespace dtn
 			 * @see Component::getName()
 			 */
 			virtual const std::string getName() const;
+
+			/**
+			 * Try to recover the interface if it was lost
+			 */
+			void recover();
 
 			/**
 			 * Reset timer and faked services for timer that reached timeout
@@ -159,6 +165,24 @@ namespace dtn
 			 */
 			//usbconnector::usb_device_cb_registration *_cb_registration;
 			usbinterface _interface;
+
+			uint8_t _in_sequence_number;
+			uint8_t _out_sequence_number;
+
+			/**
+			 * set to true if the interface was lost and has to be recovered
+			 */
+			bool _recovering;
+
+			/**
+			 * The vendor id for the device for that an interface is created
+			 */
+			int _vendor_id;
+
+			/**
+			 * The product id for the device for that an interface is created
+			 */
+			int _product_id;
 		};
 	}
 }

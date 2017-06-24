@@ -42,7 +42,7 @@ namespace ibrcommon
 		{
 		public:
 			virtual void interface_discovered(usbinterface &iface) = 0;
-			virtual void interface_lost(usbinterface &iface) = 0;
+			virtual void interface_lost(const usbinterface &iface) = 0;
 		};
 
 		class usb_device_cb_registration

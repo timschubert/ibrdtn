@@ -7,7 +7,8 @@ h_sources = \
 	stopandwait.h \
 	vsocket.h \
 	vinterface.h \
-	vaddress.h
+	vaddress.h \
+	dgramheader.h
 
 cc_sources = \
 	socket.cpp \

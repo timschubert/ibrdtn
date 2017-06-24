@@ -25,24 +25,26 @@ namespace ibrcommon
 {
 	const std::string usbsocket::TAG = "usbsocket";
 
-	usbsocket::usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, size_t queue_size)
-			: ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _max_queue_size(queue_size)
+	usbsocket::usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out)
+			: datagramsocket(), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface)
 	{
 		basesocket::_state = SOCKET_DOWN;
-		int fds[2];
-		int err = ::pipe(fds);
+
+		/* create unnamed unix domain socket pair */
+		int pair[2];
+		int err = ::socketpair(AF_UNIX, SOCK_DGRAM, 0, pair);
 		if (err)
 		{
-			throw socket_exception("Failed to create pipe.");
+			throw usb_socket_error(::strerror(errno));
 		}
-
-		_pipe_trick = fds[0];
-		datagramsocket::_fd = fds[1];
+		datagramsocket::_fd = pair[0];
+		_internal_fd = pair[1];
 	}
 
 	usbsocket::~usbsocket()
 	{
-		::close(_pipe_trick);
+		::close(datagramsocket::_fd);
+		::close(_internal_fd);
 	}
 
 	void usbsocket::up() throw (socket_exception)
@@ -53,16 +55,11 @@ namespace ibrcommon
 
 			/* prepare the buffer with one pending transfer */
 			uint8_t *transfer_buffer = new uint8_t[1000];
-			try
-			{
-				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Preparing initial transfer" << IBRCOMMON_LOGGER_ENDL;
-				prepare_transfer(transfer_buffer, 1000, interface.device(), ep_in, LIBUSB_TRANSFER_SHORT_NOT_OK, transfer_in_cb);
-			}
-			catch (USBError &e)
-			{
-				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
-				throw socket_exception("Failed to submit initial transfer.");
-			}
+			uint8_t *prime_buffer = new uint8_t[1];
+
+			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Preparing initial in-bound transfer" << IBRCOMMON_LOGGER_ENDL;
+			submit_new_transfer(this->interface.device(), this->ep_in, transfer_buffer, 1000, transfer_in_cb, (void *)&(this->_internal_fd), 0);
+			submit_new_transfer(this->interface.device(), this->ep_out, prime_buffer, 1, transfer_out_cb, (void *)&(this->_internal_fd), LIBUSB_TRANSFER_ADD_ZERO_PACKET);
 		}
 	}
 
@@ -74,49 +71,91 @@ namespace ibrcommon
 		}
 	}
 
-	bool usbsocket::prepare_transfer(uint8_t *buf, int buflen, libusb_device_handle *handle, const uint8_t endpoint, int flags, libusb_transfer_cb_fn cb)
-	{
-		struct libusb_transfer *transfer = libusb_alloc_transfer(0);
-		if (!transfer)
-		{
-			return false;
-		}
-		// TODO use sensible timeout depending on bundle lifetime
-		libusb_fill_bulk_transfer(transfer, handle, endpoint, buf, buflen, cb, (void *) this, 1000);
-		transfer->flags |= flags;
-		int err = libusb_submit_transfer(transfer);
-		if (err < 0)
-		{
-			throw USBError(err);
-		}
-		return true;
-	}
-
 	void usbsocket::transfer_in_cb(struct libusb_transfer *transfer)
 	{
-		// TODO handle re-submission etc
-		// TODO set socket down on error
-
-		/* signal that we have new data, and write new data */
-		usbsocket *sock = static_cast<usbsocket *>(transfer->user_data);
-		sock->_input.push(transfer);
-
-		int err = ::write(sock->datagramsocket::_fd, "1", 1);
-		if (err < 1)
+		// TODO handle failure
+		switch (transfer->status)
 		{
-			IBRCOMMON_LOGGER_TAG("usbtransfer", warning) << "Failed to signal new data" << IBRCOMMON_LOGGER_ENDL;
+			case LIBUSB_TRANSFER_ERROR:
+			case LIBUSB_TRANSFER_TIMED_OUT:
+			case LIBUSB_TRANSFER_CANCELLED:
+			case LIBUSB_TRANSFER_STALL:
+			case LIBUSB_TRANSFER_NO_DEVICE:
+			case LIBUSB_TRANSFER_OVERFLOW:
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbtransfer", 80) << "Error in usb transfer." << IBRCOMMON_LOGGER_ENDL;
+			break;
+
+			case LIBUSB_TRANSFER_COMPLETED:
+			default:
+			break;
 		}
+
+		int fd = *static_cast<int*>(transfer->user_data);
+		if (transfer->status == LIBUSB_TRANSFER_COMPLETED)
+		{
+			ssize_t err = ::write(fd, transfer->buffer, transfer->actual_length);
+			if (err < 0)
+			{
+				IBRCOMMON_LOGGER_TAG("usbtransfer", warning) << "Failed to transfer new data" << IBRCOMMON_LOGGER_ENDL;
+				::close(fd);
+				return;
+			}
+		}
+		uint8_t *input = new uint8_t[1000];
+		submit_new_transfer(transfer->dev_handle, transfer->endpoint, input, 1000, transfer_in_cb, transfer->user_data, 0);
 	}
 
 	void usbsocket::transfer_out_cb(struct libusb_transfer *transfer)
 	{
-		// TODO handle re-submission etc
-		// TODO set socket down on error
-
-		if (1)
+		switch (transfer->status)
 		{
-			libusb_free_transfer(transfer);
+			case LIBUSB_TRANSFER_ERROR:
+			case LIBUSB_TRANSFER_TIMED_OUT:
+			case LIBUSB_TRANSFER_CANCELLED:
+			case LIBUSB_TRANSFER_STALL:
+			case LIBUSB_TRANSFER_NO_DEVICE:
+			case LIBUSB_TRANSFER_OVERFLOW:
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbtransfer", 80) << "Error in usb transfer." << IBRCOMMON_LOGGER_ENDL;
+			break;
+
+			case LIBUSB_TRANSFER_COMPLETED:
+			default:
+			break;
 		}
+
+		uint8_t *output = new uint8_t[1000];
+		int fd = *static_cast<int*>(transfer->user_data);
+		ssize_t length = ::read(fd, output, 1000);
+		if (length < 0)
+		{
+			IBRCOMMON_LOGGER_TAG("usbtransfer", warning) << "Failed to read data from socket." << IBRCOMMON_LOGGER_ENDL;
+			::close(fd);
+			return;
+		}
+		submit_new_transfer(transfer->dev_handle, transfer->endpoint, output, length, transfer_out_cb, transfer->user_data, (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK));
+	}
+
+	bool usbsocket::submit_new_transfer(libusb_device_handle *dev_handle, int endpoint, uint8_t *buffer, int length, libusb_transfer_cb_fn cb, void *user_data, int extra_flags)
+	{
+		libusb_transfer *next_transfer = libusb_alloc_transfer(0);
+		if (next_transfer == NULL)
+		{
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbtransfer", 80) << "Failed to allocate next transfer" << IBRCOMMON_LOGGER_ENDL;
+			return false;
+		}
+
+		libusb_fill_bulk_transfer(next_transfer, dev_handle, endpoint, buffer, length, cb, user_data, 1000);
+		next_transfer->flags |= LIBUSB_TRANSFER_FREE_BUFFER;
+		next_transfer->flags |= LIBUSB_TRANSFER_FREE_TRANSFER;
+
+		int err = libusb_submit_transfer(next_transfer);
+		if (err < 0)
+		{
+			IBRCOMMON_LOGGER_TAG("usbtransfer", warning) << "Failed to submit next outgoing transfer." << IBRCOMMON_LOGGER_ENDL;
+			return false;
+		}
+
+		return true;
 	}
 
 	bool match_device(libusb_device *device, const uint16_t &vendor, const uint16_t &product)
@@ -125,9 +164,7 @@ namespace ibrcommon
 		int err = libusb_get_device_descriptor(device, descriptor);
 		if (err)
 		{
-			std::stringstream ss;
-			ss << usb_error_string(err);
-			throw socket_error(ERROR_READ, ss.str());
+			throw usb_device_error(usb_error_string(err));
 		}
 		else
 		{
@@ -142,51 +179,22 @@ namespace ibrcommon
 	ssize_t usbsocket::recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw (socket_exception)
 	{
 		/* block until data is ready */
-		char pseudo[1];
-		size_t err = read(datagramsocket::fd(), pseudo, 1);
-		if (err < 1)
+		ssize_t length = ::read(datagramsocket::_fd, buf, buflen);
+		if (length < 0)
 		{
-			throw socket_exception("read failed");
+			throw usb_socket_error(::strerror(errno));
 		}
 
-		_input.poll();
-		libusb_transfer *next_transfer = _input.take();
-		if (buflen < next_transfer->actual_length)
-		{
-			throw socket_exception("Buffer was too small");
-		}
-
-		::memcpy((void *) buf, (void *) next_transfer->buffer, next_transfer->actual_length);
-
-		/* does not free the buffer, so we can reuse it */
-		libusb_free_transfer(next_transfer);
-
-		try
-		{
-			prepare_transfer(next_transfer->buffer, next_transfer->length, interface.device(), ep_in, LIBUSB_TRANSFER_SHORT_NOT_OK, (libusb_transfer_cb_fn) transfer_out_cb);
-		}
-		catch (USBError &e)
-		{
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
-			throw socket_exception("Failed to submit new transfer while receiving.");
-		}
-
-		return next_transfer->actual_length;
+		return length;
 	}
 
 	void usbsocket::sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw (socket_exception)
 	{
-		uint8_t *transfer_buffer = new uint8_t[buflen];
-		::memcpy(transfer_buffer, buf, buflen);
+		ssize_t length = ::write(datagramsocket::_fd, buf, buflen);
 
-		try
+		if (buflen < 0)
 		{
-			prepare_transfer(transfer_buffer, buflen, interface.device(), ep_out, LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER, (libusb_transfer_cb_fn) transfer_out_cb);
-		}
-		catch (USBError &e)
-		{
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
-			throw socket_exception("Failed to submit new transfer while sending.");
+			throw usb_socket_error(::strerror(errno));
 		}
 	}
 

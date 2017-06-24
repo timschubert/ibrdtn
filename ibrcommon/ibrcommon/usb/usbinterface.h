@@ -45,6 +45,16 @@ namespace ibrcommon
 		}
 	};
 
+	class usb_device_error : public USBError
+	{
+	public:
+		usb_device_error(int e)
+		 : USBError(e) {}
+
+		usb_device_error(const char *msg)
+		 : USBError(msg) {}
+	};
+
 	class usbinterface: public vinterface
 	{
 	public:

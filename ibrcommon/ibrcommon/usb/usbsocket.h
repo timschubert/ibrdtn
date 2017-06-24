@@ -27,43 +27,136 @@
 #include "ibrcommon/net/socket.h"
 #include "ibrcommon/net/socketstream.h"
 #include "ibrcommon/Logger.h"
+#include "sys/types.h"
+#include "sys/socket.h"
 #include <libusb-1.0/libusb.h>
 #include <algorithm>
 #include <unistd.h>
 
 namespace ibrcommon
 {
+	class usb_socket_error : public socket_exception
+	{
+	public:
+		usb_socket_error(const char *msg)
+		 : socket_exception(msg) {}
+	};
+
+	class usb_socket_no_device : public usb_socket_error
+	{
+	public:
+		usb_socket_no_device(const char *msg)
+		 : usb_socket_error(msg) {}
+	};
+
+	class usb_socket_transfer_error : public usb_socket_error
+	{
+	public:
+		usb_socket_transfer_error(const char *msg)
+		 : usb_socket_error(msg) {}
+	};
+
+	class usb_socket_timed_out : public usb_socket_error
+	{
+	public:
+		usb_socket_timed_out(const char *msg)
+		 : usb_socket_error(msg) {}
+	};
+
+	class usb_socket_stall : public usb_socket_error
+	{
+	public:
+		usb_socket_stall(const char *msg)
+		 : usb_socket_error(msg) {}
+	};
+
+	class usb_socket_overflow : public usb_socket_error
+	{
+	public:
+		usb_socket_overflow(const char *msg)
+		 : usb_socket_error(msg) {}
+	};
+
 	class usbsocket: public datagramsocket
 	{
 	public:
+		/**
+		 * USB bulk endpoint for incoming transfers
+		 */
 		const uint8_t ep_in;
+
+		/**
+		 * USB bulk endpoint for outgoing transfers
+		 */
 		const uint8_t ep_out;
+
+		/**
+		 * USB interface to transmit transfers on, stores the device handle
+		 */
 		const usbinterface interface;
 
-		usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, size_t queue_size);
+		/**
+		 * Creates a new usbsocket that is set down.
+		 *
+		 * @param iface interface to use for transfers
+		 * @param enpoint_in endpoint to use for incoming transfers
+		 * @param enpoint_out endpoint to use for outgoing transfers
+		 * @throws socket_exception
+		 * @throws usb_device_error
+		 */
+		usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out);
+
+		/**
+		 * Destroys the socket and closes the socket pair.
+		 */
 		virtual ~usbsocket();
 
 		void up() throw (socket_exception);
 		void down() throw (socket_exception);
 
-		bool prepare_transfer(uint8_t *buf, int buflen, libusb_device_handle *handle, const uint8_t endpoint, int flags, libusb_transfer_cb_fn cb);
-
 		virtual ssize_t recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw (socket_exception);
 		virtual void sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw (socket_exception);
 
+		/**
+		 * Compares by interface.
+		 */
 		bool operator==(const usbsocket& rhs) const;
+
+		/**
+		 * Compares by interface.
+		 */
 		bool operator!=(const usbsocket& rhs) const;
 
 	private:
+		/**
+		 * Debug tag
+		 */
 		static const std::string TAG;
 
-		Queue<libusb_transfer *> _input;
-		size_t _max_queue_size;
-		int _pipe_trick;
-
-		static void usb_send(struct libusb_device_handle *handle, uint8_t *message, int length, libusb_transfer_cb_fn cb);
+		/**
+		 * Callback for libusb to call when finishing an incomming transfer.
+		 *
+		 * Writes the data to the internal socket of the socket pair and prepares and submits the next transfer.
+		 */
 		static void transfer_in_cb(struct libusb_transfer *transfer);
+
+		/**
+		 * Callback for libusb to call when finishing an outgoing transfer.
+		 *
+		 * Reads the data from the internal socket of the socket pair and prepares and submits the next transfer.
+		 */
 		static void transfer_out_cb(struct libusb_transfer *transfer);
+
+		/**
+		 * Prepares and submits a new transfer.
+		 */
+		static bool submit_new_transfer(libusb_device_handle *dev_handle, int endpoint, uint8_t *buffer, int length, libusb_transfer_cb_fn cb, void *user_data, int extra_flags);
+
+		/**
+		 * Socket that is the internal part of the socket pair. The other end of the "bi-pipe" can be used to select(2) for the socket.
+		 * @see datagramsocket::fd()
+		 */
+		int _internal_fd;
 	};
 }
 
