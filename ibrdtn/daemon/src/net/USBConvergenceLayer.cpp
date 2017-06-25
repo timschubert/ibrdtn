@@ -267,7 +267,7 @@ namespace dtn
 						_vsocket.select(&fds, NULL, NULL, &tv);
 						for (auto &fd : fds) {
 							usbsocket *sock = dynamic_cast<usbsocket *>(fd);
-							char data[1500];
+							char data[1000];
 							usbinterface iface = sock->interface;
 							stringstream ss;
 							ss << iface.toString();
@@ -275,7 +275,7 @@ namespace dtn
 
 							ssize_t len = 0;
 							try {
-								len = sock->recvfrom(data, 1500, 0, sender);
+								len = sock->recvfrom(data, 1000, 0, sender);
 								if (len < 0) continue;
 							} catch (socket_exception &e) {
 								IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70)

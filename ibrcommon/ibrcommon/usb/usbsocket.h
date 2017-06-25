@@ -32,6 +32,7 @@
 #include <libusb-1.0/libusb.h>
 #include <algorithm>
 #include <unistd.h>
+#include <sys/select.h>
 
 namespace ibrcommon
 {
@@ -77,7 +78,7 @@ namespace ibrcommon
 		 : usb_socket_error(msg) {}
 	};
 
-	class usbsocket: public datagramsocket
+	class usbsocket: public datagramsocket, public JoinableThread
 	{
 	public:
 		/**
@@ -127,7 +128,15 @@ namespace ibrcommon
 		 */
 		bool operator!=(const usbsocket& rhs) const;
 
+		virtual void __cancellation() throw ();
+		virtual void run() throw ();
+
 	private:
+		/**
+		 * The internal socket is read from as long as this is true
+		 */
+		bool _run;
+
 		/**
 		 * Debug tag
 		 */
