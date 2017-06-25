@@ -113,6 +113,11 @@ namespace dtn
 			 */
 			void addSocket(usbinterface &iface);
 
+			/**
+			 * Removes a socket from this convergence layer for an interface
+			 */
+			void removeSocket(const usbinterface &iface);
+
 		protected:
 			void __cancellation() throw();
 

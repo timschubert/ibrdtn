@@ -27,9 +27,23 @@ namespace ibrcommon
 	const std::string usbsocket::TAG = "usbsocket";
 
 	usbsocket::usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out)
-			: datagramsocket(), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _run(false)
+			: datagramsocket(), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _run(false), _internal_fd(-1)
 	{
 		basesocket::_state = SOCKET_DOWN;
+		//this->up(); // done by vsocket
+	}
+
+	usbsocket::~usbsocket()
+	{
+		this->down();
+	}
+
+	void usbsocket::up() throw (socket_exception)
+	{
+		if (basesocket::_state != SOCKET_DOWN)
+		{
+			throw socket_exception("socket is already up");
+		}
 
 		/* create unnamed unix domain socket pair */
 		int pair[2];
@@ -40,50 +54,43 @@ namespace ibrcommon
 		}
 		datagramsocket::_fd = pair[0];
 		_internal_fd = pair[1];
-	}
 
-	usbsocket::~usbsocket()
-	{
-		this->down();
-		::close(datagramsocket::_fd);
-		::close(_internal_fd);
-	}
+		/* prepare the buffer with one pending transfer */
+		uint8_t *transfer_buffer = new uint8_t[1000];
 
-	void usbsocket::up() throw (socket_exception)
-	{
-		if (basesocket::_state != SOCKET_UP)
-		{
-			basesocket::_state = SOCKET_UP;
+		IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Preparing initial in-bound transfer" << IBRCOMMON_LOGGER_ENDL;
+		submit_new_transfer(this->interface.device(), this->ep_in, transfer_buffer, 1000, transfer_in_cb, (void *)&(this->_internal_fd), 0);
 
-			/* prepare the buffer with one pending transfer */
-			uint8_t *transfer_buffer = new uint8_t[1000];
-			uint8_t *prime_buffer = new uint8_t[1];
+		/* start thread listening for out-bound messages */
+		this->start();
 
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Preparing initial in-bound transfer" << IBRCOMMON_LOGGER_ENDL;
-			submit_new_transfer(this->interface.device(), this->ep_in, transfer_buffer, 1000, transfer_in_cb, (void *)&(this->_internal_fd), 0);
+		basesocket::_state = SOCKET_UP;
 
-			/* start thread listening for out-bound messages */
-			_run = true;
-			this->start();
-		}
 	}
 
 	void usbsocket::down() throw (socket_exception)
 	{
-		if (basesocket::_state != SOCKET_DOWN)
+		if (basesocket::_state == SOCKET_DOWN || basesocket::_state == SOCKET_DESTROYED)
 		{
-			basesocket::_state = SOCKET_DOWN;
-
-			/* stop thread listening for out-bound messages */
-			try
-			{
-				this->stop();
-				this->join();
-			}
-			catch (ThreadException &)
-			{
-			}
+			throw socket_exception("socket is not up");
 		}
+
+		/* stop thread listening for out-bound messages */
+		try
+		{
+			this->stop();
+			this->join();
+		}
+		catch (ThreadException &)
+		{
+		}
+
+		basesocket::_state = SOCKET_DOWN;
+
+		::close(datagramsocket::_fd);
+		::close(_internal_fd);
+		datagramsocket::_fd = -1;
+		_internal_fd = -1;
 	}
 
 	void usbsocket::transfer_in_cb(struct libusb_transfer *transfer)
@@ -124,27 +131,26 @@ namespace ibrcommon
 		}
 
 		int fd = *static_cast<int*>(transfer->user_data);
-		if (transfer->status == LIBUSB_TRANSFER_COMPLETED)
+		if (transfer->status != LIBUSB_TRANSFER_NO_DEVICE)
 		{
 			ssize_t err = ::send(fd, transfer->buffer, transfer->actual_length, 0);
 			if (err < 0)
 			{
 				IBRCOMMON_LOGGER_TAG(TAG, warning) << "Failed to transfer new data" << IBRCOMMON_LOGGER_ENDL;
-				::close(fd);
 				return;
 			}
-		}
 
-		/* buffer for next transfer */
-		uint8_t *input = new uint8_t[1000];
+			/* buffer for next transfer */
+			uint8_t *input = new uint8_t[1000];
 
-		try
-		{
-			submit_new_transfer(transfer->dev_handle, transfer->endpoint, input, 1000, transfer_in_cb, transfer->user_data, 0);
-		}
-		catch (socket_exception &e)
-		{
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "IN: " << e.what() << IBRCOMMON_LOGGER_ENDL;
+			try
+			{
+				submit_new_transfer(transfer->dev_handle, transfer->endpoint, input, 1000, transfer_in_cb, transfer->user_data, 0);
+			}
+			catch (socket_exception &e)
+			{
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "IN: " << e.what() << IBRCOMMON_LOGGER_ENDL;
+			}
 		}
 	}
 
@@ -234,9 +240,9 @@ namespace ibrcommon
 
 	void usbsocket::sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw (socket_exception)
 	{
-		if (datagramsocket::_state != SOCKET_UP)
+		if (datagramsocket::_state != SOCKET_UP || !_run)
 		{
-			throw usb_socket_no_device(::strerror(errno));
+			throw usb_socket_no_device("socket not ready");
 		}
 
 		ssize_t length = ::write(datagramsocket::_fd, buf, buflen);
@@ -263,6 +269,7 @@ namespace ibrcommon
 
 	void usbsocket::run() throw ()
 	{
+		_run = true;
 		struct timeval timeout;
 		fd_set inset;
 		FD_ZERO(&inset);
@@ -287,8 +294,7 @@ namespace ibrcommon
 				if (length < 0)
 				{
 					IBRCOMMON_LOGGER_TAG(TAG, warning) << "Failed to read data from internal socket." << IBRCOMMON_LOGGER_ENDL;
-					::close(_internal_fd);
-					_run = false;
+					__cancellation();
 				}
 				else
 				{
@@ -304,8 +310,8 @@ namespace ibrcommon
 						/* resubmit the message that would otherwise be lost */
 						::send(_fd, output, length, 0);
 
-						/* set the socket down*/
-						this->down();
+						/* cancel */
+						__cancellation();
 					}
 					catch (usb_socket_error &e)
 					{
