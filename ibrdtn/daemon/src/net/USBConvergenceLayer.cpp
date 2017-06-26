@@ -130,8 +130,8 @@ namespace dtn
 				}
 				catch (usb_socket_no_device &e)
 				{
-					interface_lost(sock->interface);
 					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
+					interface_lost(sock->interface);
 				}
 				// TODO handle other errors
 				catch (usb_socket_error &e)
@@ -188,17 +188,24 @@ namespace dtn
 				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << e.what() << IBRCOMMON_LOGGER_ENDL;
 			}
 
+			_vsocket.down();
 			this->removeSocket(_interface);
 
-			_vsocket.down();
-
-			_interface.set_down();
+			try
+			{
+				_interface.set_down();
+			} catch (USBError &e)
+			{
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "Failed to set interface " << _interface.toString() << " down" << IBRCOMMON_LOGGER_ENDL;
+			}
 		}
 
 		void USBConvergenceLayer::removeSocket(const usbinterface &iface)
 		{
+			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "removing sockets from interface" << IBRCOMMON_LOGGER_ENDL;
+
 			/* un-register as discovery beacon handler */
-			dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(_interface, this);
+			//dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(_interface, this);
 
 			for (auto &s : _vsocket.get(iface))
 			{
@@ -567,8 +574,24 @@ namespace dtn
 
 		void USBConvergenceLayer::interface_lost(const usbinterface &iface)
 		{
-			removeSocket(iface);
+			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "lost interface " << iface.toString() << IBRCOMMON_LOGGER_ENDL;
 
+			removeSocket(iface); // THIS
+
+			if (iface == _interface)
+			{
+				//_vsocket.down();
+				try
+				{
+					_interface.set_down();
+				}
+				catch (USBError &e)
+				{
+					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "failed to set interface " << iface.toString() << " down" << IBRCOMMON_LOGGER_ENDL;
+				}
+			}
+
+			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "starting recovery of " << iface.toString() << IBRCOMMON_LOGGER_ENDL;
 			_recovering = true;
 		}
 
