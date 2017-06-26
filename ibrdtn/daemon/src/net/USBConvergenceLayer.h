@@ -47,6 +47,13 @@ namespace dtn
 {
 	namespace net
 	{
+		class USBBundleError : public ibrcommon::Exception
+		{
+		public:
+			USBBundleError() {}
+			USBBundleError(const char *msg) : ibrcommon::Exception(msg) {}
+		};
+
 		class USBConvergenceLayer : public ConvergenceLayer,
 		                            public DiscoveryBeaconHandler,
 		                            public usbconnector::usb_device_cb,
@@ -117,6 +124,11 @@ namespace dtn
 			 * Removes a socket from this convergence layer for an interface
 			 */
 			void removeSocket(const usbinterface &iface);
+
+			/**
+			 * Process an incoming bundle
+			 */
+			void processIncomingBundle(Bundle &bundle);
 
 		protected:
 			void __cancellation() throw();

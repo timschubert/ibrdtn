@@ -285,12 +285,12 @@ namespace dtn
 								continue;
 							}
 
+							/* write incoming data to stream */
 							ss.flush();
 							ss.write(data, len);
 
 							try {
 								/* parse header */
-								//dgram_header header;
 								uint8_t header;
 								ss >> header;
 
@@ -298,15 +298,18 @@ namespace dtn
 
 								if (_in_sequence_number != received_sequence_number)
 								{
-									IBRCOMMON_LOGGER_TAG(TAG, info) << "Incoming data frame (seqnr = " << received_sequence_number << ") from " << iface.toString() << sock->ep_in << " received out of order " << IBRCOMMON_LOGGER_ENDL;
+									IBRCOMMON_LOGGER_TAG(TAG, info) << "Incoming frame (seqnr = " << received_sequence_number << ") from " << iface.toString() << sock->ep_in << " received out of order " << IBRCOMMON_LOGGER_ENDL;
 								}
 
 								DiscoveryBeacon beacon = dtn::core::BundleCore::getInstance().getDiscoveryAgent().obtainBeacon();
+								Bundle bundle;
 
 								switch (header & CONVERGENCE_LAYER_MASK_TYPE) {
+
 									case CONVERGENCE_LAYER_TYPE_DATA:
 									IBRCOMMON_LOGGER_TAG(TAG, info) << "Incoming data frame (seqnr = " << received_sequence_number << ") from " << iface.toString() << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
-									// TODO submit bundle event
+									DefaultSerializer(ss) >> bundle;
+									processIncomingBundle(bundle);
 									break;
 
 									case CONVERGENCE_LAYER_TYPE_DISCOVERY:
@@ -346,6 +349,31 @@ namespace dtn
 				}
 			} catch (std::exception &e) {
 				/* ignore all other errors */
+			}
+		}
+
+		void USBConvergenceLayer::processIncomingBundle(Bundle &newBundle)
+		{
+			/* validate the bundle */
+			try {
+				dtn::core::BundleCore::getInstance().validate(newBundle);
+			}
+			catch (dtn::data::Validator::RejectedException&) {
+				throw USBBundleError("Bundle was rejected by validator");
+			}
+
+			/* create a filter context */
+			dtn::core::FilterContext context;
+			context.setProtocol(dtn::core::Node::CONN_DGRAM_USB);
+
+			/* push bundle through the filter routines */
+			context.setBundle(newBundle);
+			BundleFilter::ACTION ret = dtn::core::BundleCore::getInstance().filter(dtn::core::BundleFilter::INPUT, context, newBundle);
+
+			if (ret == BundleFilter::ACCEPT)
+			{
+				/* inject accepted bundle into bundle core */
+				dtn::core::BundleCore::getInstance().inject(newBundle.source, newBundle, false);
 			}
 		}
 
