@@ -547,6 +547,11 @@ namespace dtn
 
 		void USBConvergenceLayer::interface_lost(const usbinterface &iface)
 		{
+			for (auto *sock : _vsocket.get(iface))
+			{
+				_vsocket.remove(sock);
+			}
+
 			_recovering = true;
 		}
 
