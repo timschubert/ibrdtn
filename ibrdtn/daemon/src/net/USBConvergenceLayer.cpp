@@ -175,9 +175,6 @@ namespace dtn
 			this->addSocket(_interface);
 
 			_vsocket.up();
-
-			/* register as discovery beacon handler */
-			dtn::core::BundleCore::getInstance().getDiscoveryAgent().registerService(_interface, this);
 		}
 
 		void USBConvergenceLayer::componentDown() throw()
@@ -207,13 +204,8 @@ namespace dtn
 			{
 				try
 				{
-					usbsocket *sock = dynamic_cast<usbsocket *>(s);
-					if (sock->interface == iface)
-					{
-						_vsocket.remove(s);
-						IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "removed a socket" << IBRCOMMON_LOGGER_ENDL;
-						break;
-					}
+					_vsocket.remove(s);
+					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "removed a socket" << IBRCOMMON_LOGGER_ENDL;
 				}
 				catch (socket_error &e)
 				{
@@ -308,7 +300,7 @@ namespace dtn
 
 									case CONVERGENCE_LAYER_TYPE_DATA:
 									IBRCOMMON_LOGGER_TAG(TAG, info) << "Incoming data frame (seqnr = " << received_sequence_number << ") from " << iface.toString() << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
-									DefaultSerializer(ss) >> bundle;
+									DefaultDeserializer(ss) >> bundle;
 									processIncomingBundle(bundle);
 									break;
 
@@ -575,10 +567,7 @@ namespace dtn
 
 		void USBConvergenceLayer::interface_lost(const usbinterface &iface)
 		{
-			for (auto *sock : _vsocket.get(iface))
-			{
-				_vsocket.remove(sock);
-			}
+			removeSocket(iface);
 
 			_recovering = true;
 		}
