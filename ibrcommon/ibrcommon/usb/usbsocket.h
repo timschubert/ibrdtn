@@ -36,18 +36,21 @@
 
 namespace ibrcommon
 {
-	class usb_socket_error : public socket_exception
+	class usb_socket_error : public socket_error
 	{
 	public:
 		usb_socket_error(const char *msg)
-		 : socket_exception(msg) {}
+		 : socket_error(ERROR_AGAIN, msg) {}
+
+		usb_socket_error(socket_error_code error, std::string msg)
+		 : socket_error(error, msg) {}
 	};
 
 	class usb_socket_no_device : public usb_socket_error
 	{
 	public:
 		usb_socket_no_device(const char *msg)
-		 : usb_socket_error(msg) {}
+		 : usb_socket_error(ERROR_CLOSED, msg) { }
 	};
 
 	class usb_socket_transfer_error : public usb_socket_error

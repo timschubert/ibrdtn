@@ -26,14 +26,13 @@
 #include "DiscoveryBeacon.h"
 #include "DiscoveryBeaconEvent.h"
 #include "USBService.h"
-#include "USBTransferService.h"
+#include "USBConnection.h"
 #include "core/BundleCore.h"
 #include "core/BundleEvent.h"
 #include "ibrcommon/Exceptions.h"
 #include "ibrcommon/Logger.h"
 #include "ibrcommon/net/vaddress.h"
 #include "ibrcommon/net/vinterface.h"
-#include "ibrcommon/net/dgramheader.h"
 #include "ibrcommon/usb/usbconnector.h"
 #include "ibrcommon/usb/usbsocket.h"
 #include "ibrcommon/usb/usbstream.h"
@@ -101,29 +100,9 @@ namespace dtn
 			size_t timeout(Timer *t);
 
 			/**
-			 * Fetches a list of prioritized USBConnection to a Node.
-			 *
-			 * @param node The fetch the connections to a Node
-			 *
-			 * @return A sorted list of USBConnections to the Node
-			 */
-			std::list<USBConnection *> getConnections(const Node &node);
-
-
-			/**
 			 * Handle an incoming discovery beacon
 			 */
-			void handle_discovery(DiscoveryBeacon &beacon, usbsocket &sock);
-
-			/**
-			 * Add a socket to this convergence layer for an interface
-			 */
-			void addSocket(usbinterface &iface);
-
-			/**
-			 * Removes a socket from this convergence layer for an interface
-			 */
-			void removeSocket(const usbinterface &iface);
+			void processBeacon(DiscoveryBeacon &beacon);
 
 			/**
 			 * Process an incoming bundle
@@ -138,10 +117,48 @@ namespace dtn
 			void componentRun() throw();
 
 		private:
-			usbconnector &_con;
-			USBTransferService *_usb;
-			USBService *_service;
+			/**
+			 * Configuration for all USB_CLs
+			 */
 			const dtn::daemon::Configuration::USB &_config;
+
+			/**
+			 * True while the CL is supposed to process input, false otherwise
+			 */
+			bool _run;
+
+			/**
+			 * connect to these endpoints if a new matching USB interface is found
+			 */
+			uint8_t _endpointIn;
+			uint8_t _endpointOut;
+
+			/**
+			 * The USB interface the CL is connected to
+			 *
+			 * @see _connection
+			 */
+			usbinterface _interface;
+
+			/**
+			 * true if the interface was lost and has to be recovered, false otherwise
+			 */
+			bool _recovering;
+
+			/**
+			 * The vendor id for the device for that an interface is created
+			 */
+			int _vendor_id;
+
+			/**
+			 * The product id for the device for that an interface is created
+			 */
+			int _product_id;
+
+			/**
+			 * Service that runs the USB connector
+			 */
+			USBService *_service;
 
 			/**
 			 * for locking faked services
@@ -158,48 +175,22 @@ namespace dtn
 			std::map<dtn::data::EID, DiscoveryBeacon::service_list> _fakedServices;
 
 			/**
-			 * connected to all known sockets
-			 * used for select
+			 * Stream to the USB interface that the CL is connected to
 			 */
-			vsocket _vsocket;
+			USBConnection *_connection;
 
 			/**
-			 * Stores sockets for neighbors
+			 * Process input coming from a USBConnection
+			 *
+			 * @param con connection to obtain the input from
 			 */
-			Mutex _connectionsLock;
-			std::vector<USBConnection *> _connections;
-
-			bool _run;
+			void processInput(USBConnection *con);
 
 			/**
-			 * connect to these endpoints if a new matching USB interface is found
+			 * Submit a bundle transfer to a connection
 			 */
-			uint8_t _endpointIn;
-			uint8_t _endpointOut;
+			void submit(USBConnection *con, const dtn::net::BundleTransfer &job);
 
-			/**
-			 * callback registration for hotplug
-			 */
-			//usbconnector::usb_device_cb_registration *_cb_registration;
-			usbinterface _interface;
-
-			uint8_t _in_sequence_number;
-			uint8_t _out_sequence_number;
-
-			/**
-			 * set to true if the interface was lost and has to be recovered
-			 */
-			bool _recovering;
-
-			/**
-			 * The vendor id for the device for that an interface is created
-			 */
-			int _vendor_id;
-
-			/**
-			 * The product id for the device for that an interface is created
-			 */
-			int _product_id;
 		};
 	}
 }

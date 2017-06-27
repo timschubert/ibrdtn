@@ -45,16 +45,14 @@ namespace dtn
 			const DiscoveryBeacon& getBeacon() const;
 			const std::string getName() const;
 			std::string getMessage() const;
-			const ibrcommon::basesocket& getSender() const;
 
-			static void raise(DiscoveryBeacon &beacon, EventDiscoveryBeaconAction action, ibrcommon::basesocket &sock);
+			static void raise(DiscoveryBeacon &beacon, EventDiscoveryBeaconAction action);
 
 		private:
-			DiscoveryBeaconEvent(DiscoveryBeacon &beacon, EventDiscoveryBeaconAction action, ibrcommon::basesocket &sock);
+			DiscoveryBeaconEvent(DiscoveryBeacon &beacon, EventDiscoveryBeaconAction action);
 
 			const DiscoveryBeacon m_beacon;
 			const EventDiscoveryBeaconAction m_action;
-			const ibrcommon::basesocket &m_sock;
 		};
 	}
 }

@@ -73,8 +73,8 @@ net_SOURCES += EMailSmtpService.cpp EMailSmtpService.h EMailImapService.cpp EMai
 endif
 
 if HAVE_USB
-net_SOURCES += USBConvergenceLayer.h USBTransferService.h USBService.h
-net_SOURCES += USBConvergenceLayer.cpp USBTransferService.cpp USBService.cpp
+net_SOURCES += USBConvergenceLayer.h USBConnection.h USBService.h
+net_SOURCES += USBConvergenceLayer.cpp USBConnection.cpp USBService.cpp
 endif
 
 AM_CPPFLAGS = -I$(top_srcdir)/src $(ibrdtn_CFLAGS) $(CURL_CFLAGS) $(DTNDHT_CFLAGS) $(WIFIP2P_CFLAGS) $(VMIME_CFLAGS) $(GCOV_CFLAGS)

@@ -26,8 +26,8 @@ namespace dtn
 	namespace net
 	{
 
-		DiscoveryBeaconEvent::DiscoveryBeaconEvent(DiscoveryBeacon &beacon, EventDiscoveryBeaconAction action, ibrcommon::basesocket &sock)
-		: m_beacon(beacon), m_action(action), m_sock(sock)
+		DiscoveryBeaconEvent::DiscoveryBeaconEvent(DiscoveryBeacon &beacon, EventDiscoveryBeaconAction action)
+		: m_beacon(beacon), m_action(action)
 		{
 			switch (action)
 			{
@@ -39,9 +39,9 @@ namespace dtn
 			}
 		}
 
-		void DiscoveryBeaconEvent::raise(DiscoveryBeacon &beacon, EventDiscoveryBeaconAction action, ibrcommon::basesocket &sock)
+		void DiscoveryBeaconEvent::raise(DiscoveryBeacon &beacon, EventDiscoveryBeaconAction action)
 		{
-			dtn::core::EventDispatcher<DiscoveryBeaconEvent>::queue(new DiscoveryBeaconEvent(beacon, action, sock));
+			dtn::core::EventDispatcher<DiscoveryBeaconEvent>::queue(new DiscoveryBeaconEvent(beacon, action));
 		}
 
 		DiscoveryBeaconEvent::~DiscoveryBeaconEvent()
@@ -74,11 +74,6 @@ namespace dtn
 			}
 
 			return "unknown";
-		}
-
-		const ibrcommon::basesocket& DiscoveryBeaconEvent::getSender() const
-		{
-			return m_sock;
 		}
 	}
 }

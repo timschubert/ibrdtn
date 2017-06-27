@@ -29,26 +29,22 @@ namespace dtn
 
 		USBConvergenceLayer::USBConvergenceLayer(uint16_t vendor, uint16_t product, uint8_t interfaceNum, uint8_t endpointIn, uint8_t endpointOut)
 		 : dtn::daemon::IndependentComponent()
-		 , _con(usbconnector::get_instance())
 		 , _config(daemon::Configuration::getInstance().getUSB())
 		 , _run(false)
 		 , _endpointIn(endpointIn)
 		 , _endpointOut(endpointOut)
-		 , _interface(_con.open(vendor, product))
-		 , _in_sequence_number(0)
-		 , _out_sequence_number(0)
+		 , _interface(usbconnector::get_instance().open(vendor, product))
 		 , _recovering(false)
 		 , _vendor_id(vendor)
 		 , _product_id(product)
 		{
-			_service = new USBService(_con);
-			_usb = new USBTransferService();
+			usbsocket *sock = new usbsocket(_interface, _endpointIn, _endpointOut);
+			_connection = new USBConnection(sock, 1000);
+			_service = new USBService(usbconnector::get_instance());
 		}
 
 		USBConvergenceLayer::~USBConvergenceLayer()
 		{
-
-			delete _usb;
 			delete _service;
 
 			{
@@ -58,19 +54,33 @@ namespace dtn
 					delete timer.second;
 				}
 			}
-			{
-				MutexLock l(_connectionsLock);
-				for (auto *con : _connections)
-				{
-					delete con;
-				}
-			}
-
 		}
 
 		dtn::core::Node::Protocol USBConvergenceLayer::getDiscoveryProtocol() const
 		{
 			return dtn::core::Node::CONN_DGRAM_USB;
+		}
+
+		void USBConvergenceLayer::submit(USBConnection *con, const dtn::net::BundleTransfer &job)
+		{
+			dtn::storage::BundleStorage &storage = dtn::core::BundleCore::getInstance().getStorage();
+			const dtn::data::MetaBundle &bundle = job.getBundle();
+			try
+			{
+				/* transmit Bundle */
+				if (!storage.contains(bundle))
+				{
+					IBRCOMMON_LOGGER_DEBUG(80) << "Bundle " << bundle << " not found" << IBRCOMMON_LOGGER_ENDL;
+				}
+				else
+				{
+					(*con) << storage.get(bundle);
+				}
+			} catch (ibrcommon::socket_exception &e)
+			{
+				IBRCOMMON_LOGGER_DEBUG(80) << e.what() << IBRCOMMON_LOGGER_ENDL;
+				dtn::net::TransferAbortedEvent::raise(con->getNode().getEID(), bundle, dtn::net::TransferAbortedEvent::REASON_UNDEFINED);
+			}
 		}
 
 		void USBConvergenceLayer::queue(const dtn::core::Node &n, const dtn::net::BundleTransfer &job)
@@ -82,17 +92,10 @@ namespace dtn
 				dtn::net::TransferAbortedEvent::raise(n.getEID(), job.getBundle(), dtn::net::TransferAbortedEvent::REASON_UNDEFINED);
 				return;
 			}
-			/* prepare a new transfer task */
-			MutexLock l(_connectionsLock);
-			for (auto *con : _connections)
+			if (_connection->match(n))
 			{
-				if (con->match(n))
-				{
-					USBTransferService::Task *task = new USBTransferService::Task(*con, job, 0);
-
-					_usb->queue(task);
-					return;
-				}
+				submit(_connection, job);
+				return;
 			}
 
 			dtn::net::TransferAbortedEvent::raise(n.getEID(), job.getBundle(), dtn::net::TransferAbortedEvent::REASON_UNDEFINED);
@@ -101,42 +104,18 @@ namespace dtn
 		void USBConvergenceLayer::onAdvertiseBeacon(const vinterface &iface, const DiscoveryBeacon &beacon) throw ()
 		{
 			/* broadcast beacon over USB */
-			std::stringstream ss;
+			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "Sending beacon over USB." << IBRCOMMON_LOGGER_ENDL;
 
-			//dgram_header header = {
-			//		.compat = 0,
-			//		.type = (CONVERGENCE_LAYER_TYPE_DISCOVERY & CONVERGENCE_LAYER_MASK_TYPE),
-			//		.seqnr = _out_sequence_number,
-			//		.flags = 0
-			//};
-
-			uint8_t header = 0;
-			header |= (CONVERGENCE_LAYER_TYPE_DISCOVERY & CONVERGENCE_LAYER_MASK_TYPE);
-			header |= (_out_sequence_number << 2);
-
-			ss << header << beacon;
-			std::string datastr = ss.str();
-			const char *data = datastr.c_str();
-			vaddress empty;
-			for (auto &s : _vsocket.get(iface))
+			try
 			{
-				usbsocket *sock = dynamic_cast<usbsocket *>(s);
-				try
+				/* send now */
+				(*_connection) << beacon;
+				_connection->flush();
+			} catch (socket_error &e)
+			{
+				if (_connection->getError() == ERROR_CLOSED)
 				{
-					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "Sending beacon over USB." << IBRCOMMON_LOGGER_ENDL;
-
-					sock->sendto(data, datastr.size(), 0, empty);
-					_out_sequence_number = (_out_sequence_number + 1) % 4;
-				}
-				catch (usb_socket_no_device &e)
-				{
-					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
-					interface_lost(sock->interface);
-				}
-				// TODO handle other errors
-				catch (usb_socket_error &e)
-				{
-					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
+					interface_lost(_interface);
 				}
 			}
 		}
@@ -171,10 +150,15 @@ namespace dtn
 
 		void USBConvergenceLayer::componentUp() throw()
 		{
-			_interface.set_up();
-			this->addSocket(_interface);
-
-			_vsocket.up();
+			try
+			{
+				_interface.set_up();
+				usbsocket *sock = new usbsocket(_interface, _endpointIn, _endpointOut);
+				_connection = new USBConnection(sock, 1000);
+			} catch (ibrcommon::Exception &e)
+			{
+				interface_lost(_interface);
+			}
 		}
 
 		void USBConvergenceLayer::componentDown() throw()
@@ -188,8 +172,7 @@ namespace dtn
 				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << e.what() << IBRCOMMON_LOGGER_ENDL;
 			}
 
-			_vsocket.down();
-			this->removeSocket(_interface);
+			delete _connection;
 
 			try
 			{
@@ -200,27 +183,6 @@ namespace dtn
 			}
 		}
 
-		void USBConvergenceLayer::removeSocket(const usbinterface &iface)
-		{
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "removing sockets from interface" << IBRCOMMON_LOGGER_ENDL;
-
-			/* un-register as discovery beacon handler */
-			//dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(_interface, this);
-
-			for (auto &s : _vsocket.get(iface))
-			{
-				try
-				{
-					_vsocket.remove(s);
-					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "removed a socket" << IBRCOMMON_LOGGER_ENDL;
-				}
-				catch (socket_error &e)
-				{
-					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "failed to remove a socket" << e.what() << IBRCOMMON_LOGGER_ENDL;
-				}
-			}
-		}
-
 		void USBConvergenceLayer::recover()
 		{
 			while (_recovering)
@@ -228,8 +190,12 @@ namespace dtn
 				try
 				{
 					/* try to open a new interface to the device and open a socket on the interface */
-					_interface = _con.open(_vendor_id, _product_id);
-					this->addSocket(_interface);
+					_interface = usbconnector::get_instance().open(_vendor_id, _product_id);
+					usbsocket *sock = new usbsocket(_interface, _endpointIn, _endpointOut);
+
+					delete _connection;
+					_connection = new USBConnection(sock, 1000);
+
 					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "Recovered interface" << IBRCOMMON_LOGGER_ENDL;
 					_recovering = false;
 				}
@@ -237,7 +203,7 @@ namespace dtn
 				{
 					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "recover: " << e.what() << IBRCOMMON_LOGGER_ENDL;
 				}
-				catch (socket_exception &e)
+				catch (ibrcommon::Exception &e)
 				{
 					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "recover: " << e.what() << IBRCOMMON_LOGGER_ENDL;
 				}
@@ -247,106 +213,77 @@ namespace dtn
 			}
 		}
 
+		void USBConvergenceLayer::processInput(USBConnection *con)
+		{
+
+			dtn::data::Bundle bundle;
+			DiscoveryBeacon beacon = dtn::core::BundleCore::getInstance().getDiscoveryAgent().obtainBeacon();
+
+			USBMessageType type = _connection->getNextType();
+
+			switch (type) {
+
+				case DATA:
+				if (!((*con) >> bundle))
+				{
+					throw dtn::InvalidDataException("failed to parse bundle");
+				}
+				processIncomingBundle(bundle);
+				break;
+
+				case DISCOVERY:
+				if (!((*con) >> beacon))
+				{
+					throw dtn::InvalidDataException("failed to parse discovery message");
+				}
+				processBeacon(beacon);
+				break;
+
+				case ACK:
+				// TODO
+
+				case NACK:
+				// TODO
+
+				default:
+					throw dtn::InvalidDataException("failed to parse USB message");
+				break;
+			}
+
+			/* ignore the rest */
+			con->ignore(1000);
+		}
+
 		void USBConvergenceLayer::componentRun() throw()
 		{
 			_run = true;
 
 			try {
-				struct timeval tv;
-				tv.tv_sec = 1;
-				tv.tv_usec = 0;
-
-				while (_run) {
+				while (_run)
+				{
 					if (_recovering)
 					{
 						// TODO replace with reconnect via hotplug if device / interface supports  hotplug
 						recover();
 						continue;
 					}
-					socketset fds;
-					try {
-						_vsocket.select(&fds, NULL, NULL, &tv);
-						for (auto &fd : fds) {
-							usbsocket *sock = dynamic_cast<usbsocket *>(fd);
-							char data[1000];
-							usbinterface iface = sock->interface;
-							stringstream ss;
-							ss << iface.toString();
-							vaddress sender(ss.str(), "");
-
-							ssize_t len = 0;
-							try {
-								len = sock->recvfrom(data, 1000, 0, sender);
-								if (len < 0) continue;
-							} catch (socket_exception &e) {
-								IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70)
-									<< e.what() << IBRCOMMON_LOGGER_ENDL;
-								continue;
-							}
-
-							/* write incoming data to stream */
-							ss.flush();
-							ss.write(data, len);
-
-							try {
-								/* parse header */
-								uint8_t header;
-								ss >> header;
-
-								const uint8_t received_sequence_number = ((header & CONVERGENCE_LAYER_MASK_SEQNO) >> 2);
-
-								if (_in_sequence_number != received_sequence_number)
-								{
-									IBRCOMMON_LOGGER_TAG(TAG, info) << "Incoming frame (seqnr = " << received_sequence_number << ") from " << iface.toString() << sock->ep_in << " received out of order " << IBRCOMMON_LOGGER_ENDL;
-								}
-
-								DiscoveryBeacon beacon = dtn::core::BundleCore::getInstance().getDiscoveryAgent().obtainBeacon();
-								Bundle bundle;
-
-								switch (header & CONVERGENCE_LAYER_MASK_TYPE) {
-
-									case CONVERGENCE_LAYER_TYPE_DATA:
-									IBRCOMMON_LOGGER_TAG(TAG, info) << "Incoming data frame (seqnr = " << received_sequence_number << ") from " << iface.toString() << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
-									DefaultDeserializer(ss) >> bundle;
-									processIncomingBundle(bundle);
-									break;
-
-									case CONVERGENCE_LAYER_TYPE_DISCOVERY:
-									IBRCOMMON_LOGGER_TAG(TAG, info) << "Incoming discovery (seqnr = " <<  received_sequence_number << ") from " << iface.toString() << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
-									ss >> beacon;
-									handle_discovery(beacon, *sock);
-									break;
-
-									case CONVERGENCE_LAYER_TYPE_ACK:
-									IBRCOMMON_LOGGER_TAG(TAG, info) << "Incoming acknowledgment (seqnr = " << received_sequence_number << ") from " << iface.toString() << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
-									// TODO
-									break;
-
-									case CONVERGENCE_LAYER_TYPE_NACK:
-									IBRCOMMON_LOGGER_TAG(TAG, info) << "Incoming negative acknowledgment (seqnr = " << received_sequence_number << ") from " << iface.toString() << sock->ep_in << IBRCOMMON_LOGGER_ENDL; // TODO
-									// TODO
-									break;
-
-									default:
-									IBRCOMMON_LOGGER_TAG(TAG, warning) << "Incoming data not recognized (seqnr = " << received_sequence_number << ") from " << iface.toString() << sock->ep_in << IBRCOMMON_LOGGER_ENDL;
-									break;
-								}
-							} catch (const dtn::InvalidDataException &e) {
-								IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70)
-									<< e.what() << IBRCOMMON_LOGGER_ENDL;
-							} catch (const IOException &e) {
-								IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70)
-									<< e.what() << IBRCOMMON_LOGGER_ENDL;
-							}
-						}
-					} catch (const vsocket_timeout &e) {
-						tv.tv_sec = 1;
-						tv.tv_usec = 0;
-					} catch (const vsocket_interrupt &e) {
+					try
+					{
+						processInput(_connection);
+					} catch (const dtn::InvalidDataException &e)
+					{
 						IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
+					} catch (const vsocket_timeout &e)
+					{
+						IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
+					} catch (const vsocket_interrupt &e)
+					{
+						IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
+						_run = false;
 					}
 				}
-			} catch (std::exception &e) {
+			} catch (std::exception &e)
+			{
 				/* ignore all other errors */
 			}
 		}
@@ -382,42 +319,33 @@ namespace dtn
 			_run = false;
 		}
 
-		void USBConvergenceLayer::handle_discovery(DiscoveryBeacon &beacon, usbsocket &sock)
+		void USBConvergenceLayer::processBeacon(DiscoveryBeacon &beacon)
 		{
-			usbinterface iface = sock.interface;
 			if (beacon.isShort())
 			{
 				std::stringstream ss;
-				ss << "usb://[" << sock.interface.toString() << "]";
+				ss << "usb://[" << _interface.toString() << "]";
 				beacon.setEID(dtn::data::EID(ss.str()));
 
 				/* add this CL if list is empty */
 				ss.flush();
-				ss << "usb="
-				   << "host-mode";
+				ss << "usb=" << "host-mode";
 				beacon.addService(dtn::net::DiscoveryService(dtn::core::Node::CONN_DGRAM_USB, ss.str()));
 			}
 
 			DiscoveryBeacon::service_list &services = beacon.getServices();
 
+			/* find an existing connection for the node, otherwise add the node to a connection for this socket */
 			{
-				MutexLock l(_connectionsLock);
-				bool found = false;
-				for (auto *con : _connections)
+				/* we already have discovered this node */
+				if (_connection->match(beacon.getEID()))
 				{
-					if (con->match(beacon.getEID()))
-					{
-						found = true;
-						break;
-					}
-				}
-				if (!found)
-				{
-					dtn::core::Node best_guess(beacon.getEID());
-					USBConnection *con = new USBConnection(sock, best_guess);
-					_connections.push_back(con);
+					// TODO?
+				} else {
+					_connection->setNode(dtn::core::Node(beacon.getEID()));
 				}
 			}
+
 			/* announce the beacon */
 			dtn::core::BundleCore::getInstance().getDiscoveryAgent().onBeaconReceived(beacon);
 
@@ -441,7 +369,7 @@ namespace dtn
 
 			if (_config.getProxy())
 			{
-				DiscoveryBeaconEvent::raise(beacon, EventDiscoveryBeaconAction::DISCOVERY_PROXY, sock);
+				DiscoveryBeaconEvent::raise(beacon, EventDiscoveryBeaconAction::DISCOVERY_PROXY);
 			}
 		}
 
@@ -477,30 +405,10 @@ namespace dtn
 				case DISCOVERY_PROXY:
 					if (_config.getProxy())
 					{
-						std::stringstream ss;
-						ss << event.getBeacon();
-						std::string data = ss.str();
-						for (auto &s : _vsocket.getAll())
+						/* prevent direct loop-back */
+						if (!_connection->match(event.getBeacon().getEID()))
 						{
-							try
-							{
-								usbsocket *sock = dynamic_cast<usbsocket *>(s);
-								if (*sock != dynamic_cast<const usbsocket &>(event.getSender()))
-								{
-									vaddress empty;
-									try
-									{
-										sock->sendto(data.c_str(), data.size(), 0, empty);
-									} catch (socket_error &e)
-									{
-										IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
-									}
-								}
-							}
-							catch (std::bad_cast &)
-							{
-								break;
-							}
+							(*_connection) << event.getBeacon();
 						}
 					}
 					break;
@@ -509,29 +417,19 @@ namespace dtn
 			}
 		}
 
-		void USBConvergenceLayer::addSocket(usbinterface &iface)
-		{
-			usbsocket *sock = new usbsocket(iface, _endpointIn, _endpointOut);
-			_vsocket.add(sock, iface);
-			sock->up();
-			IBRCOMMON_LOGGER_TAG(TAG, info) << "obtained a new socket" << IBRCOMMON_LOGGER_ENDL;
-			dtn::core::BundleCore::getInstance().getDiscoveryAgent().registerService(iface, this);
-		}
-
 		void USBConvergenceLayer::interface_discovered(usbinterface &iface)
 		{
 			try
 			{
 				iface.set_up();
-				addSocket(iface);
+				usbsocket *sock = new usbsocket(_interface, _endpointIn, _endpointOut);
+				delete _connection;
+				_connection = new USBConnection(sock, 1000);
 			}
-			catch (USBError &e)
-			{
-				IBRCOMMON_LOGGER_TAG(TAG, warning) << "Failed to setup interface: " << e.what() << IBRCOMMON_LOGGER_ENDL;
-			}
-			catch (socket_exception &e)
+			catch (ibrcommon::Exception &e)
 			{
 				IBRCOMMON_LOGGER_TAG(TAG, warning) << "Failed to setup socket on interface " << e.what() << IBRCOMMON_LOGGER_ENDL;
+				_recovering = true;
 			}
 		}
 
@@ -543,28 +441,12 @@ namespace dtn
 				case NODE_DATA_ADDED:
 					if (node.has(Node::CONN_DGRAM_USB))
 					{
-						MutexLock l(_connectionsLock);
-						for (auto *con : _connections)
-						{
-							if (con->match(node))
-							{
-								con->addNode(node);
-							}
-						}
+						_connection->setNode(node);
 					}
 					break;
 				case NODE_DATA_REMOVED:
 				{
-					MutexLock l(_connectionsLock);
-					for (std::vector<USBConnection *>::iterator con = _connections.begin(); con != _connections.end(); ++con)
-					{
-						if ((*con)->match(node))
-						{
-							delete *con;
-							_connections.erase(con);
-							break;
-						}
-					}
+					_connection->unsetNode();
 					break;
 				}
 				default:
@@ -576,16 +458,13 @@ namespace dtn
 		{
 			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "lost interface " << iface.toString() << IBRCOMMON_LOGGER_ENDL;
 
-			removeSocket(iface); // THIS
-
 			if (iface == _interface)
 			{
-				//_vsocket.down();
 				try
 				{
 					_interface.set_down();
 				}
-				catch (USBError &e)
+				catch (ibrcommon::Exception &e)
 				{
 					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "failed to set interface " << iface.toString() << " down" << IBRCOMMON_LOGGER_ENDL;
 				}
@@ -594,21 +473,6 @@ namespace dtn
 			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "starting recovery of " << iface.toString() << IBRCOMMON_LOGGER_ENDL;
 			_recovering = true;
 		}
-
-		std::list<USBConnection*> USBConvergenceLayer::getConnections(const Node &node)
-		{
-			std::list<USBConnection*> cons;
-			MutexLock l(_connectionsLock);
-			for (auto *con : _connections)
-			{
-				if (con->match(node))
-				{
-					cons.push_back(con);
-				}
-			}
-			return cons;
-		}
-
 
 		const std::string USBConvergenceLayer::getName() const
 		{
