@@ -24,7 +24,6 @@
 
 #include "Component.h"
 #include "DiscoveryBeacon.h"
-#include "DiscoveryBeaconEvent.h"
 #include "USBService.h"
 #include "USBConnection.h"
 #include "core/BundleCore.h"
@@ -55,16 +54,15 @@ namespace dtn
 
 		class USBConvergenceLayer : public ConvergenceLayer,
 		                            public DiscoveryBeaconHandler,
-		                            public usbconnector::usb_device_cb,
-		                            public dtn::core::EventReceiver<DiscoveryBeaconEvent>,
-		                            public dtn::core::EventReceiver<dtn::core::NodeEvent>,
-		                            public TimerCallback,
+		                            public usbconnector::usbdevice_cb,
 		                            public dtn::daemon::IndependentComponent
 		{
 		public:
 			static const std::string TAG;
 
 			USBConvergenceLayer(uint16_t vendor, uint16_t product, uint8_t inerfaceNum, uint8_t endpointIn, uint8_t endpointOut);
+
+			void raiseEvent(const NodeEvent &event) throw();
 
 			/** @see ConvergenceLayer */
 			virtual ~USBConvergenceLayer();
@@ -74,15 +72,13 @@ namespace dtn
 			virtual void getStats(ConvergenceLayer::stats_data &data) const;
 
 			/** @see DiscoveryBeaconHandler */
+			virtual void onReceiveBeacon(const ibrcommon::vinterface &iface, const DiscoveryBeacon &beacon) throw ();
 			virtual void onUpdateBeacon(const vinterface &iface, DiscoveryBeacon &beacon) throw(NoServiceHereException);
 			virtual void onAdvertiseBeacon(const vinterface &iface, const DiscoveryBeacon &beacon) throw();
 
-			/** @see usbconnector::usb_device_cb */
-			virtual void interface_discovered(usbinterface &iface);
-			virtual void interface_lost(const usbinterface &iface);
-
-			void raiseEvent(const DiscoveryBeaconEvent &event) throw();
-			void raiseEvent(const NodeEvent &event) throw();
+			/** @see ibrcommon::usbconnector:usbinterface_cb */
+			void device_discovered(usbdevice &dev);
+			void device_lost(const usbdevice &dev);
 
 			/**
 			 * @see Component::getName()
@@ -95,14 +91,9 @@ namespace dtn
 			void recover();
 
 			/**
-			 * Reset timer and faked services for timer that reached timeout
-			 */
-			size_t timeout(Timer *t);
-
-			/**
 			 * Handle an incoming discovery beacon
 			 */
-			void processBeacon(DiscoveryBeacon &beacon);
+			void processBeacon(USBConnection *con, DiscoveryBeacon &beacon);
 
 			/**
 			 * Process an incoming bundle
@@ -134,16 +125,9 @@ namespace dtn
 			uint8_t _endpointOut;
 
 			/**
-			 * The USB interface the CL is connected to
-			 *
-			 * @see _connection
+			 * Interface number on the USB device
 			 */
-			usbinterface _interface;
-
-			/**
-			 * true if the interface was lost and has to be recovered, false otherwise
-			 */
-			bool _recovering;
+			uint8_t _interfaceNum;
 
 			/**
 			 * The vendor id for the device for that an interface is created
@@ -161,23 +145,22 @@ namespace dtn
 			USBService *_service;
 
 			/**
-			 * for locking faked services
+			 * The USB interface the CL is connected to
+			 * New sockets are opened on this interface
+			 *
+			 * @see _connections
 			 */
-			Mutex _fakedServicesLock;
-			/**
-			 * timers for validity of faked services
-			 */
-			std::map<dtn::data::EID, Timer *> _fakedServicesTimers;
+			usbinterface _interface;
 
 			/**
-			 * faked services
+			 * Locks access to connections
 			 */
-			std::map<dtn::data::EID, DiscoveryBeacon::service_list> _fakedServices;
+			Mutex _connectionsLock;
 
 			/**
 			 * Stream to the USB interface that the CL is connected to
 			 */
-			USBConnection *_connection;
+			std::set<USBConnection *> _connections;
 
 			/**
 			 * Process input coming from a USBConnection

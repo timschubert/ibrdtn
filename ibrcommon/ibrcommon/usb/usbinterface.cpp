@@ -23,8 +23,52 @@
 
 namespace ibrcommon
 {
-	usbinterface::usbinterface(const std::string &name, libusb_device_handle *device, const uint8_t &bus_num, const uint8_t &addr, const uint8_t &iface)
-			: vinterface(name), _device(device), bus(bus_num), address(addr), interface_num(iface)
+	usbdevice::usbdevice(libusb_context *context, uint16_t vendor, uint16_t product)
+	{
+		_handle = libusb_open_device_with_vid_pid(context, vendor, product);
+		if (_handle == NULL)
+		{
+			throw usb_device_error("Failed to open device.");
+		}
+
+		_device = libusb_get_device(_handle);
+	}
+
+	usbdevice::usbdevice(libusb_context *context, libusb_device *device)
+		: _device(device)
+	{
+		int err = libusb_open(device, &_handle);
+		if (err)
+		{
+			throw usb_device_error("Failed to open device.");
+		}
+	}
+
+	uint8_t usbdevice::get_bus() const
+	{
+		return libusb_get_bus_number(_device);
+	}
+
+	uint8_t usbdevice::get_address() const
+	{
+		return libusb_get_device_address(_device);
+	}
+
+	std::ostream& operator<<(std::ostream &out, const usbdevice &dev)
+	{
+		out << (int) libusb_get_device_address(dev._device);
+		out << "@";
+		out << libusb_get_bus_number(dev._device);
+		return out;
+	}
+
+	libusb_device_handle *usbdevice::get_handle() const
+	{
+		return _handle;
+	}
+
+	usbinterface::usbinterface(const std::string &name, usbdevice &device, const uint8_t &iface)
+			: vinterface(name), _device(device), interface_num(iface)
 	{
 	}
 
@@ -32,24 +76,9 @@ namespace ibrcommon
 	{
 	}
 
-	const uint8_t& usbinterface::get_bus() const
-	{
-		return bus;
-	}
-
-	const uint8_t& usbinterface::get_address() const
-	{
-		return address;
-	}
-
-	const uint8_t& usbinterface::get_interface_num() const
-	{
-		return interface_num;
-	}
-
 	void usbinterface::set_up()
 	{
-		int err = libusb_claim_interface(_device, interface_num);
+		int err = libusb_claim_interface(_device.get_handle(), interface_num);
 		if (err)
 		{
 			throw USBError(static_cast<libusb_error>(err));
@@ -59,28 +88,26 @@ namespace ibrcommon
 	void usbinterface::set_down()
 	{
 		/* Note: streams are automagically freed when releasing an interface */
-		// TODO close sockets (send event)
-		int err = libusb_release_interface(_device, interface_num);
+		int err = libusb_release_interface(_device.get_handle(), interface_num);
 		if (err)
 		{
 			throw USBError(static_cast<libusb_error>(err));
 		}
 	}
 
-	libusb_device_handle *usbinterface::device() const
+	libusb_device_handle* usbinterface::device() const
 	{
-		return _device;
+		return _device.get_handle();
 	}
 
-	bool usbinterface::operator==(const usbinterface& rhs) const
+	std::string usbinterface::get_name() const
 	{
-		return this->interface_num == rhs.interface_num
-				&& this->bus == rhs.bus
-				&& this->address == rhs.address;
+		return _name;
 	}
 
-	bool usbinterface::operator!=(const usbinterface& rhs) const
+	std::ostream& operator<<(std::ostream &out, const usbinterface &iface)
 	{
-		return !(*this == rhs);
+		out << iface.interface_num << iface._device;
+		return out;
 	}
 }

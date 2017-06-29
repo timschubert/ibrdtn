@@ -22,15 +22,16 @@
 #ifndef USBCONNECTOR_H_
 #define USBCONNECTOR_H_
 
+#include "usbinterface.h"
 #include "ibrcommon/Logger.h"
 #include "ibrcommon/net/vaddress.h"
-#include "ibrcommon/net/vinterface.h"
 #include "ibrcommon/net/vsocket.h"
 #include "ibrcommon/thread/Thread.h"
-#include "usbinterface.h"
 #include <libusb-1.0/libusb.h>
 #include <poll.h>
 #include <sys/select.h>
+#include <map>
+#include <set>
 
 
 namespace ibrcommon
@@ -38,22 +39,12 @@ namespace ibrcommon
 	class usbconnector
 	{
 	public:
-		class usb_device_cb
-		{
-		public:
-			virtual void interface_discovered(usbinterface &iface) = 0;
-			virtual void interface_lost(const usbinterface &iface) = 0;
-		};
 
-		class usb_device_cb_registration
+		class usbdevice_cb
 		{
 		public:
-			usb_device_cb_registration(const int &_vendor, const int &_product, const int &_interface_num,
-			                           const libusb_hotplug_callback_handle *_handle);
-			const int vendor_id;
-			const int product_id;
-			const int interface;
-			const libusb_hotplug_callback_handle *handle;
+			virtual void device_discovered(usbdevice &device) = 0;
+			virtual void device_lost(const usbdevice &device) = 0;
 		};
 
 		virtual ~usbconnector();
@@ -63,15 +54,14 @@ namespace ibrcommon
 		static void fd_added_callback(int fd, short events, void *user_data);
 		static void usb_fd_removed_callback(int fd, void *con);
 
-
 		bool hotplug();
-		usbinterface open(const int &vendor, const int &product);
+		usbinterface open(const uint16_t &vendor, const uint16_t &product, const uint8_t &interface);
 
 		usbconnector(usbconnector const &) = delete;
 		void operator=(usbconnector const &) = delete;
 
-		usb_device_cb_registration *register_device_cb(usb_device_cb *cb, int vendor, int product, int interface);
-		void unregister_device_cb(usb_device_cb *cb, usb_device_cb_registration *reg);
+		void register_device_cb(usbdevice_cb *cb, uint16_t vendor, uint16_t product);
+		void unregister_device_cb(usbdevice_cb *cb, uint16_t vendor, uint16_t product);
 
 		virtual void usb_loop(void) throw();
 
@@ -81,8 +71,8 @@ namespace ibrcommon
 		libusb_context *_usb_context;
 		bool _cap_hotplug;
 
-		ibrcommon::Mutex _hotplug_handles_lock;
-		std::map<usb_device_cb *, std::vector<usb_device_cb_registration *> > _hotplug_handles;
+		Mutex _handles_lock;
+		std::map<usbdevice_cb *, libusb_hotplug_callback_handle> _handles;
 
 		/* libusb does only use POLLIN and POLLOUT events */
 		ibrcommon::Mutex _pollfd_lock;
@@ -93,8 +83,6 @@ namespace ibrcommon
 		void add_fd(int fd, short events);
 		void remove_fd(int fd);
 	};
-
-	static const int DEFAULT_INTERFACE = 0;
 }
 
 #endif // USBCONNECTOR_H_

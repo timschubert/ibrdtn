@@ -27,7 +27,6 @@
 
 #include "Component.h"
 #include "net/DiscoveryBeaconHandler.h"
-#include "net/DiscoveryBeaconEvent.h"
 #include "net/P2PDialupEvent.h"
 #include "core/EventReceiver.h"
 #include <ibrcommon/net/vinterface.h>

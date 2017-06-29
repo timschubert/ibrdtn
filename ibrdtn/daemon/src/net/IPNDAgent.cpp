@@ -487,11 +487,6 @@ namespace dtn
 								// announce the received beacon
 								agent.onBeaconReceived(beacon);
 
-								if (dtn::daemon::Configuration::getInstance().getDiscovery().proxy())
-								{
-									IBRCOMMON_LOGGER_TAG(IPNDAgent::TAG, info) << "Proxying beacon." << IBRCOMMON_LOGGER_ENDL;
-									DiscoveryBeaconEvent::raise(beacon, DISCOVERY_PROXY);
-								}
 							} catch (const dtn::InvalidDataException&) {
 							} catch (const ibrcommon::IOException&) {
 							}

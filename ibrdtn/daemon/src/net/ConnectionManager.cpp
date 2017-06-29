@@ -197,38 +197,6 @@ namespace dtn
 
 				return;
 			}
-			/* if node has USB-CL and is not fake node */
-			//else if (n.has(Node::CONN_USB) && n.getEID().getScheme().compare("usb") != 0)
-			//{
-			//	dtn::core::Node node = n;
-
-			//	/* get USB URI list for fake node */
-			//	std::list<Node::URI> uris = node.get(Node::CONN_USB);
-			//	for (auto &uri : uris)
-			//	{
-			//		std::string address;
-			//		unsigned int port;
-			//		uri.decode(address, port);
-
-			//		/* create fake node for USB link */
-			//		dtn::core::Node usbNode("usb://" + address);
-
-			//		usbNode.add(Node::URI(uri.type, Node::CONN_USB, "usb=" + address + ";", uri.expire = dtn::utils::Clock::getTime(), uri.priority));
-
-			//		/* announce fake node */
-			//		updateNeighbor(fakeNode);
-
-			//		// Add route to faked node
-			//		dtn::core::BundleCore::getInstance().addRoute(node.getEID(), usbNode.getEID());
-			//		node.remove(uri);
-			//		if (node.getAll().size() == 0)
-			//		{
-			//			return;
-			//		}
-			//	}
-			//	updateNeighbor(node);
-			//	return;
-			//}
 
 			ibrcommon::MutexLock l(_node_lock);
 			pair<nodemap::iterator,bool> ret = _nodes.insert( pair<dtn::data::EID, dtn::core::Node>(n.getEID(), n) );

@@ -39,8 +39,6 @@ namespace ibrcommon
 
 	protected:
 		vsocket _sock;
-		socket_error_code error;
-		size_t _buflen;
 
 		virtual void close();
 
@@ -49,6 +47,8 @@ namespace ibrcommon
 		virtual std::char_traits<char>::int_type underflow();
 
 	private:
+		socket_error_code error;
+		size_t _buflen;
 
 		std::vector<char> _in_buf;
 		std::vector<char> out_buf_;

@@ -56,7 +56,7 @@ namespace dtn
 	namespace daemon
 	{
 		Configuration::NetConfig::NetConfig(const std::string &n, NetType t)
-		 : name(n), type(t), iface(ibrcommon::vinterface::ANY), mtu(0), port(0)
+		 : name(n), type(t), iface(ibrcommon::vinterface::ANY), mtu(0), port(0), vendor(0), product(0), interface_num(0), endpoint_in(0), endpoint_out(0)
 		{
 		}
 
@@ -84,7 +84,7 @@ namespace dtn
 		{}
 
 		Configuration::Discovery::Discovery()
-		 : _enabled(true), _interval(5), _announce(true), _short(false), _version(2), _crosslayer(false), _proxy(false) {}
+		 : _enabled(true), _interval(5), _announce(true), _short(false), _version(2), _crosslayer(false), _gateway(false) {}
 
 		Configuration::Debug::Debug()
 		 : _enabled(false), _quiet(false), _level(0), _profiling(false) {}
@@ -415,7 +415,7 @@ namespace dtn
 			_short = (conf.read<int>("discovery_short", 0) == 1);
 			_version = conf.read<int>("discovery_version", 2);
 			_crosslayer = (conf.read<std::string>("discovery_crosslayer", "no") == "yes");
-			_proxy = (conf.read<std::string>("discovery_proxy", "no") == "yes");
+			_gateway = (conf.read<std::string>("discovery_proxy", "no") == "yes");
 		}
 
 		void Configuration::Logger::load(const ibrcommon::ConfigFile &conf)
@@ -638,9 +638,9 @@ namespace dtn
 			return _crosslayer;
 		}
 
-		bool Configuration::Discovery::proxy() const
+		bool Configuration::Discovery::gateway() const
 		{
-			return _proxy;
+			return _gateway;
 		}
 
 		Configuration::NetConfig Configuration::getAPIInterface() const

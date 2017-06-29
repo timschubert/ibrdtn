@@ -25,26 +25,40 @@ namespace dtn
 {
 	namespace net
 	{
-		USBConnection::USBConnection(ibrcommon::usbsocket *socket, const size_t buflen)
-			: ibrcommon::usbstream(socket, buflen), _in_sequence_number(0), _out_sequence_number(0)
+		USBConnection::USBConnection(ibrcommon::usbsocket *sock, size_t buflen, dtn::core::Node &_node)
+			: ibrcommon::usbstream(sock, buflen),
+			  _in_sequence_number(0),
+			  _out_sequence_number(0),
+			  _node(_node)
 		{
-			_node = dtn::core::Node();
 		}
 
-		USBConnection::USBConnection(ibrcommon::usbsocket *socket, const size_t buflen, dtn::core::Node &node)
-			: USBConnection(socket, buflen)
+		void USBConnection::raiseEvent(const NodeEvent &event) throw()
 		{
-			_node = node;
-		}
+			const Node &node = event.getNode();
+			switch (event.getAction())
+			{
+				case NODE_DATA_ADDED:
+					if (node.has(Node::CONN_DGRAM_USB))
+					{
+						_node = node;
+						ConnectionEvent::raise(ConnectionEvent::CONNECTION_UP, _node);
+					}
+					break;
 
-		void USBConnection::setNode(const dtn::core::Node &node)
-		{
-			_node = node;
-		}
+				case NODE_DATA_REMOVED:
+					if (node.has(Node::CONN_DGRAM_USB) && node == _node)
+					{
+						ConnectionEvent::raise(ConnectionEvent::CONNECTION_DOWN, _node);
 
-		void USBConnection::unsetNode()
-		{
-			_node = dtn::core::Node();
+						/* reset the faked services */
+						_fakedServices.clear();
+					}
+					break;
+
+				default:
+					break;
+			}
 		}
 
 		USBConnection::~USBConnection()
@@ -74,10 +88,8 @@ namespace dtn
 		USBMessageType USBConnection::getNextType()
 		{
 			uint8_t header;
-			if (!(*this >> header))
+			if (!((*this) >> header))
 			{
-				/* ignore complete buffer up to EOF */
-				this->ignore(_buflen);
 				throw dtn::InvalidDataException("failed to parse usb header");
 			}
 
@@ -113,15 +125,11 @@ namespace dtn
 				break;
 
 			default:
-				this->ignore(_buflen);
+				clear();
+				ignore(numeric_limits<streamsize>::max());
 				throw dtn::InvalidDataException("failed to parse usb header type");
 				break;
 			}
-		}
-
-		const ibrcommon::socket_error_code USBConnection::getError() const
-		{
-			return error;
 		}
 
 		USBConnection& operator<<(USBConnection &out, const dtn::data::Bundle &bundle)
@@ -133,17 +141,22 @@ namespace dtn
 			DefaultSerializer(out) << bundle;
 			out._out_sequence_number = (out._out_sequence_number + 1) % 4;
 
+			out.flush();
+
 			return out;
 		}
 
 		USBConnection& operator<<(USBConnection &out, const DiscoveryBeacon &beacon)
 		{
 			uint8_t header = 0;
-			header |= CONVERGENCE_LAYER_TYPE_DISCOVERY & CONVERGENCE_LAYER_MASK_TYPE;
-			header |= (out._out_sequence_number << 2) & CONVERGENCE_LAYER_MASK_SEQNO;
-			ibrcommon::usbstream &stream = static_cast<ibrcommon::usbstream &>(out);
-			stream << header << beacon;
+			header |= (CONVERGENCE_LAYER_TYPE_DISCOVERY & CONVERGENCE_LAYER_MASK_TYPE);
+			header |= ((out._out_sequence_number << 2) & CONVERGENCE_LAYER_MASK_SEQNO);
+
+
+			static_cast<ibrcommon::usbstream&>(out) << (char) header << beacon;
 			out._out_sequence_number = (out._out_sequence_number + 1) % 4;
+
+			out.flush();
 
 			return out;
 		}
@@ -151,13 +164,46 @@ namespace dtn
 		USBConnection& operator>>(USBConnection &in, dtn::data::Bundle &bundle)
 		{
 			DefaultDeserializer(in) >> bundle;
+			if (in.fail())
+			{
+				in.clear();
+				in.ignore(numeric_limits<streamsize>::max());
+			}
+
 			return in;
 		}
 
 		USBConnection& operator>>(USBConnection &in, DiscoveryBeacon &beacon)
 		{
-			in >> beacon;
+			if (!(in >> beacon))
+			{
+				in.clear();
+				in.ignore(numeric_limits<streamsize>::max());
+			}
+
 			return in;
+		}
+
+		void USBConnection::reconnect(ibrcommon::usbinterface &iface, const uint8_t &endpointIn, const uint8_t &endpointOut)
+		{
+			_sock.destroy();
+			_sock.add(new ibrcommon::usbsocket(iface, endpointIn, endpointOut));
+			_sock.up();
+		}
+
+		void USBConnection::addServices(DiscoveryBeacon &beacon)
+		{
+			ibrcommon::MutexLock l(_fakedServicesLock);
+
+			for (auto &service : _fakedServices)
+			{
+				beacon.addService(service);
+			}
+		}
+
+		void USBConnection::setServices(DiscoveryBeacon::service_list &services)
+		{
+			_fakedServices = services;
 		}
 	}
 }

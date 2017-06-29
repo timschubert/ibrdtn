@@ -24,6 +24,7 @@
 #include "ibrcommon/net/vinterface.h"
 #include "ibrcommon/net/vaddress.h"
 #include <libusb-1.0/libusb.h>
+#include <iostream>
 
 #ifndef usb_error_string
 #define usb_error_string(e) libusb_strerror((libusb_error) e)
@@ -55,6 +56,24 @@ namespace ibrcommon
 		 : USBError(msg) {}
 	};
 
+	class usbdevice
+	{
+	public:
+		usbdevice(libusb_context *context, uint16_t vendor, uint16_t product);
+		usbdevice(libusb_context *context, libusb_device *device);
+
+		uint8_t get_bus() const;
+		uint8_t get_address() const;
+
+		libusb_device_handle *get_handle() const;
+
+		friend std::ostream& operator<<(std::ostream &out, const usbdevice &dev);
+
+	private:
+		libusb_device_handle *_handle;
+		libusb_device *_device;
+	};
+
 	class usbinterface: public vinterface
 	{
 	public:
@@ -69,24 +88,21 @@ namespace ibrcommon
 			virtual void event_link_down(usbinterface &iface) = 0;
 		};
 
-		usbinterface(const std::string &name, libusb_device_handle *device, const uint8_t &bus, const uint8_t &address, const uint8_t &interface);
+		usbinterface(const std::string &name, usbdevice &device, const uint8_t &interface);
 		virtual ~usbinterface();
 
 		libusb_device_handle *device() const;
-		const uint8_t& get_bus() const ;
-		const uint8_t& get_address() const;
-		const uint8_t& get_interface_num() const;
-
-		bool operator==(const usbinterface& rhs) const;
-		bool operator!=(const usbinterface& rhs) const;
 
 		void set_up();
 		void set_down();
 
+		std::string get_name() const;
+
+		friend std::ostream& operator<<(std::ostream &out, const usbinterface &iface);
+
 	private:
-		libusb_device_handle *_device;
-		uint8_t bus;
-		uint8_t address;
+		std::string _name;
+		usbdevice _device;
 		uint8_t interface_num;
 	};
 }

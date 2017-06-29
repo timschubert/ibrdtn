@@ -21,26 +21,23 @@
 
 #include "usbsocket.h"
 
-#include <ctime>
 namespace ibrcommon
 {
 	const std::string usbsocket::TAG = "usbsocket";
 
 	usbsocket::usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out)
-			: datagramsocket(), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _run(false), _internal_fd(-1)
+			: datagramsocket(-1), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _run(false), _internal_fd(-1)
 	{
 		basesocket::_state = SOCKET_DOWN;
-		//this->up(); // done by vsocket
 	}
 
 	usbsocket::~usbsocket()
 	{
-		this->down();
 	}
 
 	void usbsocket::up() throw (socket_exception)
 	{
-		if (basesocket::_state != SOCKET_DOWN)
+		if (basesocket::_state == SOCKET_UP)
 		{
 			throw socket_exception("socket is already up");
 		}
@@ -53,6 +50,9 @@ namespace ibrcommon
 			throw usb_socket_error(::strerror(errno));
 		}
 		datagramsocket::_fd = pair[0];
+		datagramsocket::set_blocking_mode(false, datagramsocket::_fd);
+		datagramsocket::set_blocking_mode(false, _internal_fd);
+
 		_internal_fd = pair[1];
 
 		/* prepare the buffer with one pending transfer */
@@ -72,7 +72,7 @@ namespace ibrcommon
 	{
 		if (basesocket::_state == SOCKET_DOWN || basesocket::_state == SOCKET_DESTROYED)
 		{
-			throw socket_exception("socket is not up");
+			throw socket_exception("socket down or destroyed");
 		}
 
 		/* stop thread listening for out-bound messages */
@@ -151,6 +151,8 @@ namespace ibrcommon
 			{
 				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "IN: " << e.what() << IBRCOMMON_LOGGER_ENDL;
 			}
+		} else {
+			/* critical error */
 		}
 	}
 
@@ -228,8 +230,9 @@ namespace ibrcommon
 
 	ssize_t usbsocket::recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw (socket_exception)
 	{
-		/* block until data is ready */
-		ssize_t length = ::read(datagramsocket::_fd, buf, buflen);
+		/* data is ready */
+		ssize_t length = ::recv(datagramsocket::_fd, buf, buflen, flags);
+
 		if (length < 0)
 		{
 			throw usb_socket_error(::strerror(errno));
@@ -245,7 +248,7 @@ namespace ibrcommon
 			throw usb_socket_no_device("socket not ready");
 		}
 
-		ssize_t length = ::write(datagramsocket::_fd, buf, buflen);
+		ssize_t length = ::send(datagramsocket::_fd, buf, buflen, flags);
 		if (length < 0)
 		{
 			throw usb_socket_error(::strerror(errno));

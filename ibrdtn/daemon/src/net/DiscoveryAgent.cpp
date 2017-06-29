@@ -189,6 +189,8 @@ namespace dtn
 			// ignore own beacons
 			if (beacon.getEID() == dtn::core::BundleCore::local) return;
 
+			onReceived(beacon);
+
 			// convert the announcement into NodeEvents
 			Node n(beacon.getEID());
 
@@ -247,6 +249,33 @@ namespace dtn
 
 					// set next advertisement period
 					_adv_next = ts + _beacon_period;
+				}
+			}
+		}
+
+		void DiscoveryAgent::onReceived(const DiscoveryBeacon &beacon)
+		{
+			if (dtn::daemon::Configuration::getInstance().getDiscovery().gateway())
+			{
+				/* inform all providers that a new beacon was received */
+				for (handler_map::const_iterator it_p = _providers.begin(); it_p != _providers.end(); ++it_p)
+				{
+					const ibrcommon::vinterface &iface = (*it_p).first;
+					const handler_list &plist = (*it_p).second;
+
+					if (!_config.shortbeacon())
+					{
+						for (handler_list::const_iterator iter = plist.begin(); iter != plist.end(); ++iter)
+						{
+							DiscoveryBeaconHandler &handler = (**iter);
+
+							try {
+								handler.onReceiveBeacon(iface, beacon);
+							} catch (const dtn::net::DiscoveryBeaconHandler::NoServiceHereException&)
+							{
+							}
+						}
+					}
 				}
 			}
 		}

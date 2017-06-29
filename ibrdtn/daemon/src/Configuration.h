@@ -184,8 +184,8 @@ namespace dtn
 				int _version;
 				bool _crosslayer;
 
-				/* true if discovery beacon should be made available to discovery proxies */
-				bool _proxy;
+				/* true if discovery beacon should be made available to gateways */
+				bool _gateway;
 
 			public:
 				bool enabled() const;
@@ -196,7 +196,7 @@ namespace dtn
 				int port() const;
 				unsigned int interval() const;
 				bool enableCrosslayer() const;
-				bool proxy() const;
+				bool gateway() const;
 			};
 
 			class Debug : public Configuration::Extension

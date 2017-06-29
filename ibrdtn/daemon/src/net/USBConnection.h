@@ -31,7 +31,9 @@
 #include "ibrcommon/Logger.h"
 #include "ibrcommon/net/dgramheader.h"
 #include "ibrcommon/usb/usbstream.h"
+#include "ibrcommon/thread/Mutex.h"
 #include "storage/BundleStorage.h"
+#include "ConnectionEvent.h"
 
 namespace dtn
 {
@@ -42,22 +44,27 @@ namespace dtn
 			DATA, DISCOVERY, ACK, NACK, COMMAND
 		};
 
-		class USBConnection: public ibrcommon::usbstream
+		class USBConnection
+				: public ibrcommon::usbstream,
+				  public dtn::core::EventReceiver<dtn::core::NodeEvent>
 		{
 		public:
-			USBConnection(ibrcommon::usbsocket *socket, const size_t buflen);
-			USBConnection(ibrcommon::usbsocket *socket, const size_t buflen, dtn::core::Node &node);
+			USBConnection(ibrcommon::usbsocket *sock, size_t buflen, dtn::core::Node &node);
 			virtual ~USBConnection();
+
+			void raiseEvent(const NodeEvent &event) throw();
 
 			bool match(const dtn::core::Node &node) const;
 			bool match(const dtn::data::EID &destination) const;
 			bool match(const dtn::core::NodeEvent &evt) const;
 
 			const dtn::core::Node& getNode() const;
-			void setNode(const dtn::core::Node &node);
-			void unsetNode();
 			USBMessageType getNextType();
-			const ibrcommon::socket_error_code getError() const;
+
+			void setServices(DiscoveryBeacon::service_list &services);
+			void addServices(DiscoveryBeacon &beacon);
+
+			void reconnect(ibrcommon::usbinterface &iface, const uint8_t &endpointIn, const uint8_t &endpointOut);
 
 			friend USBConnection& operator<<(USBConnection &out, const dtn::data::Bundle &bundle);
 			friend USBConnection& operator<<(USBConnection &out, const DiscoveryBeacon &beacon);
@@ -66,9 +73,19 @@ namespace dtn
 			friend USBConnection& operator>>(USBConnection &in, DiscoveryBeacon &beacon);
 
 		private:
-			dtn::core::Node _node;
+			dtn::core::Node &_node;
 			uint8_t _in_sequence_number;
 			uint8_t _out_sequence_number;
+
+			/**
+			 * for locking faked services
+			 */
+			ibrcommon::Mutex _fakedServicesLock;
+
+			/**
+			 * faked services
+			 */
+			DiscoveryBeacon::service_list _fakedServices;
 		};
 	}
 

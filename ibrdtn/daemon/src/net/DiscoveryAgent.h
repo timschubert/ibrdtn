@@ -72,6 +72,8 @@ namespace dtn
 		private:
 			void onAdvertise();
 
+			void onReceived(const DiscoveryBeacon &beacon);
+
 			const dtn::daemon::Configuration::Discovery &_config;
 
 			bool _enabled;
