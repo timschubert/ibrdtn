@@ -39,14 +39,7 @@ namespace dtn
 {
 	namespace net
 	{
-		enum USBMessageType
-		{
-			DATA, DISCOVERY, ACK, NACK, COMMAND
-		};
-
-		class USBConnection
-				: public ibrcommon::usbstream,
-				  public dtn::core::EventReceiver<dtn::core::NodeEvent>
+		class USBConnection : public dtn::core::EventReceiver<dtn::core::NodeEvent>
 		{
 		public:
 			USBConnection(ibrcommon::usbsocket *sock, size_t buflen, dtn::core::Node &node);
@@ -57,22 +50,40 @@ namespace dtn
 			bool match(const dtn::core::Node &node) const;
 			bool match(const dtn::data::EID &destination) const;
 			bool match(const dtn::core::NodeEvent &evt) const;
+			bool match(const ibrcommon::usbsocket *sock) const;
 
+			ibrcommon::usbsocket *getSocket() const;
 			const dtn::core::Node& getNode() const;
-			USBMessageType getNextType();
 
-			void setServices(DiscoveryBeacon::service_list &services);
+			void setServices(DiscoveryBeacon::service_list services);
 			void addServices(DiscoveryBeacon &beacon);
 
-			void reconnect(ibrcommon::usbinterface &iface, const uint8_t &endpointIn, const uint8_t &endpointOut);
+			void queue(const dtn::net::BundleTransfer &transfer);
+			void processJobs();
 
-			friend USBConnection& operator<<(USBConnection &out, const dtn::data::Bundle &bundle);
-			friend USBConnection& operator<<(USBConnection &out, const DiscoveryBeacon &beacon);
+			/**
+			 * Process input coming from a connection
+			 *
+			 * @param con connection to obtain the input from
+			 */
+			void processInput();
 
-			friend USBConnection& operator>>(USBConnection &in, dtn::data::Bundle &bundle);
-			friend USBConnection& operator>>(USBConnection &in, DiscoveryBeacon &beacon);
+			/**
+			 * Handle an incoming discovery beacon
+			 */
+			void processBeacon(const DiscoveryBeacon &beacon);
+
+			//friend USBConnection& operator<<(USBConnection &out, const dtn::data::Bundle &bundle);
+			//friend USBConnection& operator<<(USBConnection &out, const DiscoveryBeacon &beacon);
+
+			//friend USBConnection& operator>>(USBConnection &in, dtn::data::Bundle &bundle);
+			//friend USBConnection& operator>>(USBConnection &in, DiscoveryBeacon &beacon);
 
 		private:
+			ibrcommon::usbsocket *_sock;
+
+			ibrcommon::Queue<dtn::net::BundleTransfer> _work;
+
 			dtn::core::Node &_node;
 			uint8_t _in_sequence_number;
 			uint8_t _out_sequence_number;
@@ -86,6 +97,16 @@ namespace dtn
 			 * faked services
 			 */
 			DiscoveryBeacon::service_list _fakedServices;
+
+			/**
+			 * usb covergence layer config
+			 */
+			const daemon::Configuration::USB &_config;
+
+			/**
+			 * Process incoming bundle
+			 */
+			void __processBundle(Bundle &newBundle);
 		};
 	}
 

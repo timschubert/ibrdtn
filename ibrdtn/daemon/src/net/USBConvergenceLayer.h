@@ -85,21 +85,6 @@ namespace dtn
 			 */
 			virtual const std::string getName() const;
 
-			/**
-			 * Try to recover the interface if it was lost
-			 */
-			void recover();
-
-			/**
-			 * Handle an incoming discovery beacon
-			 */
-			void processBeacon(USBConnection *con, DiscoveryBeacon &beacon);
-
-			/**
-			 * Process an incoming bundle
-			 */
-			void processIncomingBundle(Bundle &bundle);
-
 		protected:
 			void __cancellation() throw();
 
@@ -163,16 +148,21 @@ namespace dtn
 			std::set<USBConnection *> _connections;
 
 			/**
-			 * Process input coming from a USBConnection
-			 *
-			 * @param con connection to obtain the input from
+			 * vsocket for polling of USB sockets
 			 */
-			void processInput(USBConnection *con);
+			vsocket _socket;
 
 			/**
-			 * Submit a bundle transfer to a connection
+			 * Processes an error condition on a connection
+			 *
+			 * @param con connection with error condition
 			 */
-			void submit(USBConnection *con, const dtn::net::BundleTransfer &job);
+			void __processError(USBConnection *con);
+
+			/**
+			 * Process an incoming bundle
+			 */
+			void __processIncomingBundle(Bundle &bundle);
 
 		};
 	}
