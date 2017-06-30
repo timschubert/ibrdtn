@@ -151,9 +151,18 @@ namespace dtn
 				}
 				else
 				{
+					dtn::data::Bundle data = storage.get(job.getBundle());
+					dtn::core::FilterContext context;
+					context.setPeer(getNode().getEID());
+					context.setProtocol(dtn::core::Node::CONN_DGRAM_USB);
+
+					/* push bundle through the filter routines */
+					context.setBundle(data);
+					BundleFilter::ACTION ret = dtn::core::BundleCore::getInstance().filter(dtn::core::BundleFilter::OUTPUT, context, data);
+
 					ss.flush();
 					// TODO prepend header
-					DefaultSerializer(ss) << storage.get(job.getBundle());
+					DefaultSerializer(ss) << data;
 					std::string buf = ss.str();
 					ibrcommon::vaddress empty = ibrcommon::vaddress();
 					_sock->sendto(buf.c_str(), buf.size(), 0, empty);
@@ -162,7 +171,8 @@ namespace dtn
 			} catch (ibrcommon::socket_error &e)
 			{
 				/* retry because EAGAIN */
-				_work.push(job);
+				//_work.push(job);
+				job.abort(TransferAbortedEvent::REASON_UNDEFINED);
 			} catch (ibrcommon::Exception &e)
 			{
 				job.abort(TransferAbortedEvent::REASON_UNDEFINED);
