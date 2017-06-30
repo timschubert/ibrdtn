@@ -117,48 +117,55 @@ namespace dtn
 			return this->_sock == sock;
 		}
 
-		void USBConnection::queue(const dtn::net::BundleTransfer &bundle)
+		void USBConnection::queue(const dtn::net::BundleTransfer &job)
 		{
-			_work.push(bundle);
+			// TODO work-around for contents of writeset beeing ignored by vsocket.select()
+			//_work.push(bundle);
+			BundleTransfer jobo = job;
+			__processJob(jobo);
 		}
 
 		void USBConnection::processJobs()
 		{
-			dtn::storage::BundleStorage &storage = dtn::core::BundleCore::getInstance().getStorage();
-
-			std::ostringstream ss;
-
 			while (!_work.empty())
 			{
 				BundleTransfer job = _work.poll(10);
-				try
-				{
-					const dtn::data::MetaBundle &bundle = job.getBundle();
+				__processJob(job);
+			}
+		}
 
-					/* transmit Bundle */
-					if (!storage.contains(bundle))
-					{
-						IBRCOMMON_LOGGER_DEBUG(80) << "Bundle " << bundle << " not found" << IBRCOMMON_LOGGER_ENDL;
-						job.abort(TransferAbortedEvent::REASON_BUNDLE_DELETED);
-					}
-					else
-					{
-						ss.flush();
-						// TODO prepend header
-						DefaultSerializer(ss) << storage.get(job.getBundle());
-						std::string buf = ss.str();
-						ibrcommon::vaddress empty = ibrcommon::vaddress();
-						_sock->sendto(buf.c_str(), buf.size(), 0, empty);
-						job.complete();
-					}
-				} catch (ibrcommon::socket_error &e)
+		void USBConnection::__processJob(BundleTransfer &job)
+		{
+			dtn::storage::BundleStorage &storage = dtn::core::BundleCore::getInstance().getStorage();
+			std::ostringstream ss;
+
+			try
+			{
+				const dtn::data::MetaBundle &bundle = job.getBundle();
+
+				/* transmit Bundle */
+				if (!storage.contains(bundle))
 				{
-					/* retry because EAGAIN */
-					_work.push(job);
-				} catch (ibrcommon::Exception &e)
-				{
-					job.abort(TransferAbortedEvent::REASON_UNDEFINED);
+					IBRCOMMON_LOGGER_DEBUG(80) << "Bundle " << bundle << " not found" << IBRCOMMON_LOGGER_ENDL;
+					job.abort(TransferAbortedEvent::REASON_BUNDLE_DELETED);
 				}
+				else
+				{
+					ss.flush();
+					// TODO prepend header
+					DefaultSerializer(ss) << storage.get(job.getBundle());
+					std::string buf = ss.str();
+					ibrcommon::vaddress empty = ibrcommon::vaddress();
+					_sock->sendto(buf.c_str(), buf.size(), 0, empty);
+					job.complete();
+				}
+			} catch (ibrcommon::socket_error &e)
+			{
+				/* retry because EAGAIN */
+				_work.push(job);
+			} catch (ibrcommon::Exception &e)
+			{
+				job.abort(TransferAbortedEvent::REASON_UNDEFINED);
 			}
 		}
 

@@ -107,6 +107,11 @@ namespace dtn
 			 * Process incoming bundle
 			 */
 			void __processBundle(Bundle &newBundle);
+
+			/**
+			 * Process a bundle transfer
+			 */
+			void __processJob(BundleTransfer &job);
 		};
 	}
 

@@ -135,6 +135,7 @@ namespace dtn
 			try
 			{
 				usbconnector::get_instance().register_device_cb(this, _vendor_id, _product_id);
+				_socket.up();
 
 			} catch (ibrcommon::Exception &e)
 			{
@@ -196,15 +197,17 @@ namespace dtn
 					writeset.clear();
 					errorset.clear();
 
-					if (_connections.empty())
+					if (_socket.size() < 1)
 					{
-						IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "no connections" << IBRCOMMON_LOGGER_ENDL;
+						IBRCOMMON_LOGGER_TAG(TAG, warning) << "no connections" << IBRCOMMON_LOGGER_ENDL;
 						Thread::sleep(1000);
+						continue;
 					}
 
 					try
 					{
-						_socket.select(&readset, &writeset, &errorset, NULL);
+						// TODO find workaround for writeset, vsocket.select() behaves very differently to ::select()
+						_socket.select(&readset, NULL, &errorset, NULL);
 					} catch (vsocket_interrupt &)
 					{
 					}
@@ -290,6 +293,7 @@ namespace dtn
 				_connections.insert(new USBConnection(sock, 1000, nonode));
 
 				_socket.add(sock, iface);
+				sock->up();
 
 			} catch (ibrcommon::Exception &e)
 			{
@@ -319,9 +323,12 @@ namespace dtn
 							/* only one connection per interface */
 							if (con->getSocket()->interface.get_device() == dev)
 							{
-								_socket.remove(con->getSocket());
+								usbsocket *sock = con->getSocket();
+								_socket.remove(sock);
 								delete con;
 								_connections.erase(con);
+								sock->down();
+								delete sock;
 								break;
 							}
 						}
