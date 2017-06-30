@@ -81,7 +81,12 @@ namespace ibrcommon
 
 	usbinterface::~usbinterface()
 	{
-		set_down();
+		try
+		{
+			set_down();
+		} catch (std::exception &)
+		{
+		}
 	}
 
 	libusb_device_handle *usbinterface::get_handle() const

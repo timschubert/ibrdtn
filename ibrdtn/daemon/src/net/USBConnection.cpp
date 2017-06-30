@@ -194,6 +194,11 @@ namespace dtn
 			ibrcommon::vaddress empty = ibrcommon::vaddress();
 			size_t bytes = _sock->recvfrom(buf, 1000, 0, empty);
 
+			if (bytes == 0)
+			{
+				IBRCOMMON_LOGGER_DEBUG_TAG("USBConnection", 70) << "Empty message received" << IBRCOMMON_LOGGER_ENDL;
+			}
+
 			std::stringstream ss;
 
 			ss.write(buf, bytes);
@@ -201,7 +206,7 @@ namespace dtn
 			dtn::data::Bundle bundle;
 			dtn::net::DiscoveryBeacon beacon;
 
-			uint8_t header = 0;
+			uint8_t header ;
 			if (ss >> header)
 			{
 				// TODO check & update sequence number

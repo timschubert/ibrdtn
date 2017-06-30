@@ -131,7 +131,7 @@ namespace ibrcommon
 		}
 
 		int fd = *static_cast<int*>(transfer->user_data);
-		if (transfer->status != LIBUSB_TRANSFER_NO_DEVICE)
+		if (transfer->status == LIBUSB_TRANSFER_COMPLETED)
 		{
 			ssize_t err = ::send(fd, transfer->buffer, transfer->actual_length, 0);
 			if (err < 0)
@@ -139,20 +139,15 @@ namespace ibrcommon
 				IBRCOMMON_LOGGER_TAG(TAG, warning) << "Failed to transfer new data" << IBRCOMMON_LOGGER_ENDL;
 				return;
 			}
+		}
 
-			/* buffer for next transfer */
-			uint8_t *input = new uint8_t[1000];
-
-			try
-			{
-				submit_new_transfer(transfer->dev_handle, transfer->endpoint, input, 1000, transfer_in_cb, transfer->user_data, 0);
-			}
-			catch (socket_exception &e)
-			{
-				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "IN: " << e.what() << IBRCOMMON_LOGGER_ENDL;
-			}
-		} else {
-			/* critical error */
+		try
+		{
+			submit_new_transfer(transfer->dev_handle, transfer->endpoint, transfer->buffer, transfer->length, transfer_in_cb, transfer->user_data, 0);
+		}
+		catch (ibrcommon::Exception &e)
+		{
+			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "IN: " << e.what() << IBRCOMMON_LOGGER_ENDL;
 		}
 	}
 
@@ -178,7 +173,7 @@ namespace ibrcommon
 		}
 
 		//uint8_t *output = new uint8_t[1000];
-		int fd = *static_cast<int*>(transfer->user_data);
+		//int fd = *static_cast<int*>(transfer->user_data);
 		//ssize_t length = ::read(fd, output, 1000);
 		//if (length < 0)
 		//{
@@ -198,7 +193,7 @@ namespace ibrcommon
 		}
 
 		libusb_fill_bulk_transfer(next_transfer, dev_handle, endpoint, buffer, length, cb, user_data, 1000);
-		next_transfer->flags |= LIBUSB_TRANSFER_FREE_BUFFER;
+		//next_transfer->flags |= LIBUSB_TRANSFER_FREE_BUFFER;
 		next_transfer->flags |= LIBUSB_TRANSFER_FREE_TRANSFER;
 
 		int err = libusb_submit_transfer(next_transfer);
@@ -304,7 +299,8 @@ namespace ibrcommon
 					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "Submitting new out-bound transfer." << IBRCOMMON_LOGGER_ENDL;
 					try
 					{
-						submit_new_transfer(this->interface.get_handle(), this->ep_out, output, 1000, transfer_out_cb, (void *) &(this->_internal_fd), (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK));
+						/* reuse buffer */
+						submit_new_transfer(this->interface.get_handle(), this->ep_out, output, 1000, transfer_out_cb, (void *) &(this->_internal_fd), (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER));
 					}
 					catch (usb_socket_no_device &e)
 					{
