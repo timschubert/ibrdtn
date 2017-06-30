@@ -60,7 +60,7 @@ namespace dtn
 		public:
 			static const std::string TAG;
 
-			USBConvergenceLayer(uint16_t vendor, uint16_t product, uint8_t inerfaceNum, uint8_t endpointIn, uint8_t endpointOut);
+			USBConvergenceLayer(uint16_t vendor, uint16_t product, int inerfaceNum, uint8_t endpointIn, uint8_t endpointOut);
 
 			void raiseEvent(const NodeEvent &event) throw();
 
@@ -112,7 +112,7 @@ namespace dtn
 			/**
 			 * Interface number on the USB device
 			 */
-			uint8_t _interfaceNum;
+			int _interfaceNum;
 
 			/**
 			 * The vendor id for the device for that an interface is created
@@ -127,7 +127,12 @@ namespace dtn
 			/**
 			 * Service that runs the USB connector
 			 */
-			USBService *_service;
+			USBService _service;
+
+			/**
+			 * Locks access to interfaces
+			 */
+			Mutex _interfacesLock;
 
 			/**
 			 * The USB interface the CL is connected to
@@ -135,7 +140,7 @@ namespace dtn
 			 *
 			 * @see _connections
 			 */
-			usbinterface _interface;
+			std::set<usbinterface> _interfaces;
 
 			/**
 			 * Locks access to connections

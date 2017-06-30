@@ -26,88 +26,100 @@ namespace ibrcommon
 	usbdevice::usbdevice(libusb_context *context, uint16_t vendor, uint16_t product)
 	{
 		_handle = libusb_open_device_with_vid_pid(context, vendor, product);
-		if (_handle == NULL)
+		if (_handle == nullptr)
 		{
 			throw usb_device_error("Failed to open device.");
 		}
+		libusb_device *device = libusb_get_device(_handle);
 
-		_device = libusb_get_device(_handle);
-	}
-
-	usbdevice::usbdevice(libusb_context *context, libusb_device *device)
-		: _device(device)
-	{
-		int err = libusb_open(device, &_handle);
-		if (err)
+		int err = libusb_get_device_descriptor(device, &_desc);
+		if (err < 0)
 		{
-			throw usb_device_error("Failed to open device.");
+			throw usb_device_error("failed to obtain device descriptor");
 		}
 	}
 
-	uint8_t usbdevice::get_bus() const
+	usbdevice::~usbdevice()
 	{
-		return libusb_get_bus_number(_device);
 	}
 
-	uint8_t usbdevice::get_address() const
+	usbdevice::usbdevice(libusb_device *device)
+		: _handle(nullptr)
 	{
-		return libusb_get_device_address(_device);
+		int err = libusb_get_device_descriptor(device, &_desc);
+		if (err < 0)
+		{
+			throw usb_device_error("failed to obtain device descriptor");
+		}
+
+		err = libusb_open(device, &_handle);
+		//if (err)
+		//{
+		//	throw usb_device_error("failed to open device handle");
+		//}
 	}
 
-	std::ostream& operator<<(std::ostream &out, const usbdevice &dev)
+	void usbdevice::close()
 	{
-		out << (int) libusb_get_device_address(dev._device);
-		out << "@";
-		out << libusb_get_bus_number(dev._device);
-		return out;
+		libusb_close(_handle);
 	}
 
 	libusb_device_handle *usbdevice::get_handle() const
 	{
+		if (_handle == nullptr)
+		{
+			throw usb_device_error("failed to open device handle");
+		}
 		return _handle;
 	}
 
-	usbinterface::usbinterface(const std::string &name, usbdevice &device, const uint8_t &iface)
-			: vinterface(name), _device(device), interface_num(iface)
+	usbinterface::usbinterface(usbdevice &device, int iface)
+			: _device(device), interface_num(iface)
 	{
+		set_up();
 	}
 
 	usbinterface::~usbinterface()
 	{
+		set_down();
 	}
 
-	void usbinterface::set_up()
-	{
-		int err = libusb_claim_interface(_device.get_handle(), interface_num);
-		if (err)
-		{
-			throw USBError(static_cast<libusb_error>(err));
-		}
-	}
-
-	void usbinterface::set_down()
-	{
-		/* Note: streams are automagically freed when releasing an interface */
-		int err = libusb_release_interface(_device.get_handle(), interface_num);
-		if (err)
-		{
-			throw USBError(static_cast<libusb_error>(err));
-		}
-	}
-
-	libusb_device_handle* usbinterface::device() const
+	libusb_device_handle *usbinterface::get_handle() const
 	{
 		return _device.get_handle();
 	}
 
-	std::string usbinterface::get_name() const
+	void usbinterface::set_up() const
 	{
-		return _name;
+		int err = libusb_claim_interface(get_handle(), interface_num);
+		if (err < 0)
+		{
+			throw USBError(static_cast<libusb_error>(err));
+		}
 	}
 
-	std::ostream& operator<<(std::ostream &out, const usbinterface &iface)
+	void usbinterface::set_down() const
 	{
-		out << iface.interface_num << iface._device;
-		return out;
+		/* Note: streams are automagically freed when releasing an interface */
+		int err = libusb_release_interface(get_handle(), interface_num);
+		if (err)
+		{
+			throw USBError(static_cast<libusb_error>(err));
+		}
+	}
+
+	const usbdevice& usbinterface::get_device() const
+	{
+		return _device;
+	}
+
+	bool usbdevice::operator==(const usbdevice &rhs) const
+	{
+		return this->_desc.idVendor == rhs._desc.idVendor && this->_desc.idProduct == rhs._desc.idProduct;
+	}
+
+	bool usbdevice::operator!=(const usbdevice &rhs) const
+	{
+		return !((*this) == rhs);
 	}
 }

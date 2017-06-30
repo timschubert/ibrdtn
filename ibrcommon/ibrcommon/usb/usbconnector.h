@@ -55,7 +55,8 @@ namespace ibrcommon
 		static void usb_fd_removed_callback(int fd, void *con);
 
 		bool hotplug();
-		usbinterface open(const uint16_t &vendor, const uint16_t &product, const uint8_t &interface);
+		usbdevice& open(const uint16_t &vendor, const uint16_t &product);
+		usbinterface& open_interface(const uint16_t &vendor, const uint16_t &product, int interfaceNum);
 
 		usbconnector(usbconnector const &) = delete;
 		void operator=(usbconnector const &) = delete;

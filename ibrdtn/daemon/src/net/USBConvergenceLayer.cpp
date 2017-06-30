@@ -27,7 +27,7 @@ namespace dtn
 	{
 		const std::string USBConvergenceLayer::TAG = "USBConvergenceLayer";
 
-		USBConvergenceLayer::USBConvergenceLayer(uint16_t vendor, uint16_t product, uint8_t interfaceNum, uint8_t endpointIn, uint8_t endpointOut)
+		USBConvergenceLayer::USBConvergenceLayer(uint16_t vendor, uint16_t product, int interfaceNum, uint8_t endpointIn, uint8_t endpointOut)
 		 : dtn::daemon::IndependentComponent()
 		 , _config(daemon::Configuration::getInstance().getUSB())
 		 , _run(false)
@@ -36,17 +36,12 @@ namespace dtn
 		 , _interfaceNum(interfaceNum)
 		 , _vendor_id(vendor)
 		 , _product_id(product)
-		 , _service(NULL)
-		 , _interface(usbconnector::get_instance().open(vendor, product, interfaceNum))
+		 , _service(usbconnector::get_instance())
 		{
-			_service = new USBService(usbconnector::get_instance());
-			_interface.set_up();
 		}
 
 		USBConvergenceLayer::~USBConvergenceLayer()
 		{
-			_interface.set_down();
-			delete _service;
 		}
 
 		dtn::core::Node::Protocol USBConvergenceLayer::getDiscoveryProtocol() const
@@ -94,7 +89,13 @@ namespace dtn
 				usbsocket *usbsock = static_cast<usbsocket *>(sock);
 
 				/* send now or fail */
-				usbsock->sendto(buf.c_str(), buf.size(), 0, addr);
+				try
+				{
+					usbsock->sendto(buf.c_str(), buf.size(), 0, addr);
+				} catch (ibrcommon::Exception &e)
+				{
+					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "failed to sen beacon: " << e.what() << IBRCOMMON_LOGGER_ENDL;
+				}
 			}
 		}
 
@@ -130,15 +131,17 @@ namespace dtn
 
 		void USBConvergenceLayer::componentUp() throw()
 		{
+
 			try
 			{
-				dtn::core::BundleCore::getInstance().getDiscoveryAgent().registerService(_interface, this);
+				usbconnector::get_instance().register_device_cb(this, _vendor_id, _product_id);
+
 			} catch (ibrcommon::Exception &e)
 			{
 				IBRCOMMON_LOGGER_TAG(TAG, warning) << "Failed to set USB CL up: " << e.what() << IBRCOMMON_LOGGER_ENDL;
 			}
 
-			usbconnector::get_instance().register_device_cb(this, _vendor_id, _product_id);
+			IBRCOMMON_LOGGER_TAG(TAG, info) << "Set up USB CL " << IBRCOMMON_LOGGER_ENDL;
 		}
 
 		void USBConvergenceLayer::componentDown() throw()
@@ -146,8 +149,6 @@ namespace dtn
 			try
 			{
 				usbconnector::get_instance().unregister_device_cb(this, _vendor_id, _product_id);
-
-				dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(_interface, this);
 
 				try
 				{
@@ -167,27 +168,19 @@ namespace dtn
 					}
 					_socket.destroy();
 				}
+
+				MutexLock i(_interfacesLock);
+				for (auto &iface : _interfaces)
+				{
+					dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(iface, this);
+					_interfaces.erase(iface);
+				}
+
 			} catch (ibrcommon::Exception &e)
 			{
 				IBRCOMMON_LOGGER_TAG(TAG, warning) << "Failed to set USB CL down: " << e.what() << IBRCOMMON_LOGGER_ENDL;
 			}
 		}
-
-		//void USBConvergenceLayer::recover()
-		//{
-		//	try
-		//	{
-		//		_interface = usbconnector::get_instance().open(_vendor_id, _product_id, _interfaceNum);
-		//		_interface.set_up();
-		//		_connection->reconnect(_interface, _endpointIn, _endpointOut);
-		//		IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "Recovered interface" << IBRCOMMON_LOGGER_ENDL;
-		//	}
-		//	catch (ibrcommon::Exception &e)
-		//	{
-		//		IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "recover: " << e.what() << IBRCOMMON_LOGGER_ENDL;
-		//		Thread::sleep(1000);
-		//	}
-		//}
 
 		void USBConvergenceLayer::componentRun() throw()
 		{
@@ -205,7 +198,7 @@ namespace dtn
 
 					if (_connections.empty())
 					{
-						IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "Disconnected" << IBRCOMMON_LOGGER_ENDL;
+						IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "no connections" << IBRCOMMON_LOGGER_ENDL;
 						Thread::sleep(1000);
 					}
 
@@ -275,21 +268,29 @@ namespace dtn
 			try
 			{
 				/* swap the interface new sockets will be opened on */
-				dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(_interface, this);
+				MutexLock l(_interfacesLock);
+				for (auto &iface : _interfaces)
+				{
+					/* do not allow two interfaces on same device */
+					if (dev == iface.get_device())
+					{
+						return;
+					}
+				}
 
-				usbinterface iface("amphis", dev, _interfaceNum);
-				_interface.set_down();
-				iface.set_up();
-				_interface = iface;
+				//usbinterface iface(usbconnector::get_instance().open_interface(_vendor_id, _product_id, _interfaceNum));
+				usbinterface iface(dev, _interfaceNum);
+				_interfaces.insert(iface);
+				dtn::core::BundleCore::getInstance().getDiscoveryAgent().registerService(iface, this);
 
-				dtn::core::BundleCore::getInstance().getDiscoveryAgent().registerService(_interface, this);
+				usbsocket *sock = new usbsocket(iface, _endpointIn, _endpointOut);
 
-				usbsocket *sock = new usbsocket(_interface, _endpointIn, _endpointOut);
-				MutexLock l(_connectionsLock);
-
+				MutexLock c(_connectionsLock);
 				dtn::core::Node nonode = dtn::core::Node();
 				_connections.insert(new USBConnection(sock, 1000, nonode));
-				_socket.add(sock, _interface);
+
+				_socket.add(sock, iface);
+
 			} catch (ibrcommon::Exception &e)
 			{
 				IBRCOMMON_LOGGER_TAG("USBConvergenecLayer", warning) << "failed to open new device: " << e.what() << IBRCOMMON_LOGGER_ENDL;
@@ -302,7 +303,34 @@ namespace dtn
 
 			try
 			{
-				dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(_interface, this);
+				MutexLock l(_interfacesLock);
+				for (auto &iface : _interfaces)
+				{
+					/* we only allow one iface per device (see above) */
+					if (iface.get_device() == dev)
+					{
+						dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(iface, this);
+						_interfaces.erase(iface);
+
+						/* clear connections */
+						MutexLock l(_connectionsLock);
+						for (auto *con : _connections)
+						{
+							/* only one connection per interface */
+							if (con->getSocket()->interface.get_device() == dev)
+							{
+								_socket.remove(con->getSocket());
+								delete con;
+								_connections.erase(con);
+								break;
+							}
+						}
+					}
+				}
+			} catch (ibrcommon::Exception &e)
+			{
+				IBRCOMMON_LOGGER_TAG("USBConvergenecLayer", warning) << "failed to set interface down after device was lost: " << e.what() << IBRCOMMON_LOGGER_ENDL;
+			}
 
 				/* clear connections */
 				MutexLock l(_connectionsLock);
@@ -314,19 +342,14 @@ namespace dtn
 
 				_connections.clear();
 
-				_interface.set_down();
-			} catch (ibrcommon::Exception &e)
-			{
-				IBRCOMMON_LOGGER_TAG("USBConvergenecLayer", warning) << "failed to set interface down after device was lost: " << e.what() << IBRCOMMON_LOGGER_ENDL;
-			}
 		}
 
 		void USBConvergenceLayer::__processError(USBConnection *con)
 		{
 			/* remove connection on error */
-			_socket.remove(con->getSocket());
-			_connections.erase(con);
-			delete con;
+			//_socket.remove(con->getSocket());
+			//_connections.erase(con);
+			//delete con;
 		}
 	}
 }

@@ -208,11 +208,6 @@ namespace dtn
 
 					if (beacon.isShort())
 					{
-						DiscoveryBeacon beacon = beacon;
-						std::stringstream ss;
-						ss << "usb://[" << _sock->interface << "]";
-						beacon.setEID(dtn::data::EID(ss.str()));
-
 						/* add this CL if list is empty */
 						ss.flush();
 						ss << "usb=" << "host-mode";

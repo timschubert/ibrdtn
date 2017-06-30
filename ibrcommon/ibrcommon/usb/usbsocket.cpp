@@ -59,7 +59,7 @@ namespace ibrcommon
 		uint8_t *transfer_buffer = new uint8_t[1000];
 
 		IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Preparing initial in-bound transfer" << IBRCOMMON_LOGGER_ENDL;
-		submit_new_transfer(this->interface.device(), this->ep_in, transfer_buffer, 1000, transfer_in_cb, (void *)&(this->_internal_fd), 0);
+		submit_new_transfer(this->interface.get_handle(), this->ep_in, transfer_buffer, 1000, transfer_in_cb, (void *)&(this->_internal_fd), 0);
 
 		/* start thread listening for out-bound messages */
 		this->start();
@@ -304,7 +304,7 @@ namespace ibrcommon
 					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "Submitting new out-bound transfer." << IBRCOMMON_LOGGER_ENDL;
 					try
 					{
-						submit_new_transfer(this->interface.device(), this->ep_out, output, 1000, transfer_out_cb, (void *) &(this->_internal_fd), (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK));
+						submit_new_transfer(this->interface.get_handle(), this->ep_out, output, 1000, transfer_out_cb, (void *) &(this->_internal_fd), (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK));
 					}
 					catch (usb_socket_no_device &e)
 					{

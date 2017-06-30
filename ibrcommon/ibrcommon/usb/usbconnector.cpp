@@ -36,12 +36,12 @@ namespace ibrcommon
 
 		if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event)
 		{
-			usbdevice dev(ctx, device);
+			usbdevice dev(device);
 			call_this->device_discovered(dev);
 		}
 		else if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT)
 		{
-			usbdevice dev(ctx, device);
+			usbdevice dev(device);
 			call_this->device_lost(dev);
 		}
 
@@ -116,7 +116,8 @@ namespace ibrcommon
 		struct timeval *select_timeout;
 		if (err < 0)
 		{
-			throw USBError(static_cast<libusb_error>(err));
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector", 80) << strerror(err) << IBRCOMMON_LOGGER_ENDL;
+			//throw USBError(static_cast<libusb_error>(err));
 		}
 		else if (err == 0) // Linux and Darwin Kernels
 		{
@@ -131,7 +132,7 @@ namespace ibrcommon
 
 		if (num_fds < 0)
 		{
-			throw socket_exception(strerror(errno));
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector", 80) << strerror(err) << IBRCOMMON_LOGGER_ENDL;
 		}
 		else if (num_fds == 0) // timeout
 		{
@@ -233,13 +234,17 @@ namespace ibrcommon
 		return _cap_hotplug;
 	}
 
-	usbinterface usbconnector::open(const uint16_t &vendor, const uint16_t &product, const uint8_t &interface)
+	usbdevice& usbconnector::open(const uint16_t &vendor, const uint16_t &product)
 	{
 		usbdevice dev(_usb_context, vendor, product);
+		return dev;
+	}
 
-		std::stringstream ss;
-		ss << interface << dev;
+	usbinterface& usbconnector::open_interface(const uint16_t &vendor, const uint16_t &product, int interfaceNum)
+	{
+		usbdevice dev(_usb_context, vendor, product);
+		usbinterface iface(dev, interfaceNum);
 
-		return usbinterface(ss.str(), dev, interface);
+		return iface;
 	}
 }

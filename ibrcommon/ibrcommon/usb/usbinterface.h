@@ -26,12 +26,13 @@
 #include <libusb-1.0/libusb.h>
 #include <iostream>
 
-#ifndef usb_error_string
-#define usb_error_string(e) libusb_strerror((libusb_error) e)
-#endif
-
 namespace ibrcommon
 {
+	static const char *usb_error_string(int e)
+	{
+		return libusb_strerror((libusb_error) e);
+	}
+
 	class USBError: public ibrcommon::Exception
 	{
 	public:
@@ -60,18 +61,19 @@ namespace ibrcommon
 	{
 	public:
 		usbdevice(libusb_context *context, uint16_t vendor, uint16_t product);
-		usbdevice(libusb_context *context, libusb_device *device);
+		usbdevice(libusb_device *device);
+		virtual ~usbdevice();
 
-		uint8_t get_bus() const;
-		uint8_t get_address() const;
+		void close();
 
 		libusb_device_handle *get_handle() const;
 
-		friend std::ostream& operator<<(std::ostream &out, const usbdevice &dev);
+		bool operator==(const usbdevice &rhs) const;
+		bool operator!=(const usbdevice &rhs) const;
 
 	private:
+		libusb_device_descriptor _desc;
 		libusb_device_handle *_handle;
-		libusb_device *_device;
 	};
 
 	class usbinterface: public vinterface
@@ -88,22 +90,18 @@ namespace ibrcommon
 			virtual void event_link_down(usbinterface &iface) = 0;
 		};
 
-		usbinterface(const std::string &name, usbdevice &device, const uint8_t &interface);
+		usbinterface(usbdevice &device, int interface);
 		virtual ~usbinterface();
 
-		libusb_device_handle *device() const;
+		const usbdevice& get_device() const;
+		libusb_device_handle *get_handle() const;
 
-		void set_up();
-		void set_down();
-
-		std::string get_name() const;
-
-		friend std::ostream& operator<<(std::ostream &out, const usbinterface &iface);
+		void set_up() const;
+		void set_down() const;
 
 	private:
-		std::string _name;
 		usbdevice _device;
-		uint8_t interface_num;
+		int interface_num;
 	};
 }
 
