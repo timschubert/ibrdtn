@@ -162,7 +162,7 @@ namespace ibrcommon
 		/**
 		 * Prepares and submits a new transfer.
 		 */
-		static bool submit_new_transfer(libusb_device_handle *dev_handle, int endpoint, uint8_t *buffer, int length, libusb_transfer_cb_fn cb, void *user_data, int extra_flags);
+		static bool submit_new_transfer(libusb_device_handle *dev_handle, int endpoint, uint8_t *buffer, int length, libusb_transfer_cb_fn cb, void *user_data, int extra_flags, size_t timeout);
 
 		/**
 		 * Socket that is the internal part of the socket pair. The other end of the "bi-pipe" can be used to select(2) for the socket.

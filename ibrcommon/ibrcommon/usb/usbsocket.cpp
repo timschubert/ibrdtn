@@ -59,7 +59,7 @@ namespace ibrcommon
 		uint8_t *transfer_buffer = new uint8_t[1000];
 
 		IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Preparing initial in-bound transfer" << IBRCOMMON_LOGGER_ENDL;
-		submit_new_transfer(this->interface.get_handle(), this->ep_in, transfer_buffer, 1000, transfer_in_cb, (void *)&(this->_internal_fd), 0);
+		submit_new_transfer(this->interface.get_handle(), this->ep_in, transfer_buffer, 1000, transfer_in_cb, (void *)&(this->_internal_fd), 0, 0);
 
 		/* start thread listening for out-bound messages */
 		this->start();
@@ -143,7 +143,7 @@ namespace ibrcommon
 
 		try
 		{
-			submit_new_transfer(transfer->dev_handle, transfer->endpoint, transfer->buffer, transfer->length, transfer_in_cb, transfer->user_data, 0);
+			submit_new_transfer(transfer->dev_handle, transfer->endpoint, transfer->buffer, transfer->length, transfer_in_cb, transfer->user_data, 0, transfer->timeout);
 		}
 		catch (ibrcommon::Exception &e)
 		{
@@ -184,7 +184,7 @@ namespace ibrcommon
 		//submit_new_transfer(transfer->dev_handle, transfer->endpoint, output, length, transfer_out_cb, transfer->user_data, (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK));
 	}
 
-	bool usbsocket::submit_new_transfer(libusb_device_handle *dev_handle, int endpoint, uint8_t *buffer, int length, libusb_transfer_cb_fn cb, void *user_data, int extra_flags)
+	bool usbsocket::submit_new_transfer(libusb_device_handle *dev_handle, int endpoint, uint8_t *buffer, int length, libusb_transfer_cb_fn cb, void *user_data, int extra_flags, size_t timeout)
 	{
 		libusb_transfer *next_transfer = libusb_alloc_transfer(0);
 		if (next_transfer == NULL)
@@ -192,7 +192,7 @@ namespace ibrcommon
 			throw usb_socket_error("Failed to allocate transfer");
 		}
 
-		libusb_fill_bulk_transfer(next_transfer, dev_handle, endpoint, buffer, length, cb, user_data, 1000);
+		libusb_fill_bulk_transfer(next_transfer, dev_handle, endpoint, buffer, length, cb, user_data, timeout);
 		//next_transfer->flags |= LIBUSB_TRANSFER_FREE_BUFFER;
 		next_transfer->flags |= LIBUSB_TRANSFER_FREE_TRANSFER;
 
@@ -300,7 +300,7 @@ namespace ibrcommon
 					try
 					{
 						/* reuse buffer */
-						submit_new_transfer(this->interface.get_handle(), this->ep_out, output, 1000, transfer_out_cb, (void *) &(this->_internal_fd), (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER));
+						submit_new_transfer(this->interface.get_handle(), this->ep_out, output, 1000, transfer_out_cb, (void *) &(this->_internal_fd), (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER), 1000);
 					}
 					catch (usb_socket_no_device &e)
 					{
