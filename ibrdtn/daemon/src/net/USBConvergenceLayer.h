@@ -169,6 +169,11 @@ namespace dtn
 			 */
 			void __processIncomingBundle(Bundle &bundle);
 
+			/**
+			 * Remove a connection
+			 */
+			void __removeConnection(USBConnection *con);
+
 		};
 	}
 }

@@ -151,6 +151,16 @@ namespace dtn
 			{
 				usbconnector::get_instance().unregister_device_cb(this, _vendor_id, _product_id);
 
+				{
+				 	MutexLock l(_connectionsLock);
+					for (auto &con : _connections)
+					{
+						__removeConnection(con);
+					}
+				}
+
+				_socket.destroy();
+
 				try
 				{
 					this->stop();
@@ -158,16 +168,6 @@ namespace dtn
 				} catch (const ThreadException &e)
 				{
 					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << e.what() << IBRCOMMON_LOGGER_ENDL;
-				}
-
-				{
-					MutexLock l(_connectionsLock);
-					for (auto &con : _connections)
-					{
-						delete con;
-						_connections.erase(con);
-					}
-					_socket.destroy();
 				}
 
 				MutexLock i(_interfacesLock);
@@ -197,7 +197,7 @@ namespace dtn
 					writeset.clear();
 					errorset.clear();
 
-					if (_socket.size() < 1)
+					if (_socket.size() < 1 || _connections.size() < 1)
 					{
 						IBRCOMMON_LOGGER_TAG(TAG, warning) << "no connections" << IBRCOMMON_LOGGER_ENDL;
 						Thread::sleep(1000);
@@ -315,48 +315,41 @@ namespace dtn
 					{
 						dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(iface, this);
 						_interfaces.erase(iface);
+						break;
+					}
+				}
 
-						/* clear connections */
-						MutexLock l(_connectionsLock);
-						for (auto *con : _connections)
-						{
-							/* only one connection per interface */
-							if (con->getSocket()->interface.get_device() == dev)
-							{
-								usbsocket *sock = con->getSocket();
-								_socket.remove(sock);
-								delete con;
-								_connections.erase(con);
-								sock->down();
-								delete sock;
-								break;
-							}
-						}
+				/* clear connections */
+				MutexLock c(_connectionsLock);
+				for (auto *con : _connections)
+				{
+					/* only one connection per interface */
+					if (con->getSocket()->interface.get_device() == dev)
+					{
+						__removeConnection(con);
+						break;
 					}
 				}
 			} catch (ibrcommon::Exception &e)
 			{
 				IBRCOMMON_LOGGER_TAG("USBConvergenecLayer", warning) << "failed to set interface down after device was lost: " << e.what() << IBRCOMMON_LOGGER_ENDL;
 			}
-
-				/* clear connections */
-				MutexLock l(_connectionsLock);
-				for (auto *con : _connections)
-				{
-					_socket.remove(con->getSocket());
-					delete con;
-				}
-
-				_connections.clear();
-
 		}
 
 		void USBConvergenceLayer::__processError(USBConnection *con)
 		{
 			/* remove connection on error */
-			//_socket.remove(con->getSocket());
-			//_connections.erase(con);
-			//delete con;
+			__removeConnection(con);
+		}
+
+		void USBConvergenceLayer::__removeConnection(USBConnection *con)
+		{
+			basesocket *sock = con->getSocket();
+			_socket.remove(sock);
+			_connections.erase(con);
+			delete con;
+			sock->down();
+			delete sock;
 		}
 	}
 }
