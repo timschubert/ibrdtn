@@ -158,6 +158,11 @@ namespace dtn
 			vsocket _socket;
 
 			/**
+			 * The default frame length
+			 */
+			int _frame_length;
+
+			/**
 			 * Processes an error condition on a connection
 			 *
 			 * @param con connection with error condition

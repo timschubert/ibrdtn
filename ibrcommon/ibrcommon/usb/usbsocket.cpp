@@ -25,8 +25,8 @@ namespace ibrcommon
 {
 	const std::string usbsocket::TAG = "usbsocket";
 
-	usbsocket::usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out)
-			: datagramsocket(-1), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _run(false), _internal_fd(-1)
+	usbsocket::usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, const int buflen)
+			: datagramsocket(-1), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _run(false), _internal_fd(-1), _buffer_length(buflen)
 	{
 		basesocket::_state = SOCKET_DOWN;
 	}
@@ -56,10 +56,10 @@ namespace ibrcommon
 		_internal_fd = pair[1];
 
 		/* prepare the buffer with one pending transfer */
-		uint8_t *transfer_buffer = new uint8_t[1000];
+		uint8_t *transfer_buffer = new uint8_t[_buffer_length];
 
 		IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Preparing initial in-bound transfer" << IBRCOMMON_LOGGER_ENDL;
-		submit_new_transfer(this->interface.get_handle(), this->ep_in, transfer_buffer, 1000, transfer_in_cb, (void *)&(this->_internal_fd), 0, 0);
+		submit_new_transfer(this->interface.get_handle(), this->ep_in, transfer_buffer, _buffer_length, transfer_in_cb, (void *)&(this->_internal_fd), 0, 0);
 
 		/* start thread listening for out-bound messages */
 		this->start();
@@ -238,13 +238,14 @@ namespace ibrcommon
 
 	void usbsocket::sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw (socket_exception)
 	{
-		if (datagramsocket::_state != SOCKET_UP || !_run)
+		/* check if the socket can handle request */
+		if (datagramsocket::_state != SOCKET_UP || !_run || buflen > _buffer_length)
 		{
 			throw usb_socket_no_device("socket not ready");
 		}
 
 		ssize_t length = ::send(datagramsocket::_fd, buf, buflen, flags);
-		if (length < 0)
+		if (length < buflen)
 		{
 			throw usb_socket_error(::strerror(errno));
 		}
@@ -275,7 +276,7 @@ namespace ibrcommon
 		while (_run)
 		{
 			timeout = {1, 0};
-			uint8_t *output = new uint8_t[1000];
+			uint8_t *output = new uint8_t[_buffer_length];
 			FD_SET(_internal_fd, &inset);
 			int num_fds = ::select(_internal_fd + 1, &inset, NULL, NULL, &timeout);
 			if (num_fds < 0)
@@ -288,7 +289,7 @@ namespace ibrcommon
 			}
 			else
 			{
-				ssize_t length = ::recv(_internal_fd, output, 1000, 0);
+				ssize_t length = ::recv(_internal_fd, output, _buffer_length, 0);
 				if (length < 0)
 				{
 					IBRCOMMON_LOGGER_TAG(TAG, warning) << "Failed to read data from internal socket." << IBRCOMMON_LOGGER_ENDL;
@@ -300,7 +301,7 @@ namespace ibrcommon
 					try
 					{
 						/* reuse buffer */
-						submit_new_transfer(this->interface.get_handle(), this->ep_out, output, 1000, transfer_out_cb, (void *) &(this->_internal_fd), (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER), 1000);
+						submit_new_transfer(this->interface.get_handle(), this->ep_out, output, _buffer_length, transfer_out_cb, (void *) &(this->_internal_fd), (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER), 1000);
 					}
 					catch (usb_socket_no_device &e)
 					{

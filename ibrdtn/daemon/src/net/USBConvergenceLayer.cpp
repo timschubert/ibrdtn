@@ -37,6 +37,7 @@ namespace dtn
 		 , _vendor_id(vendor)
 		 , _product_id(product)
 		 , _service(usbconnector::get_instance())
+		 , _frame_length(1000)
 		{
 		}
 
@@ -286,7 +287,7 @@ namespace dtn
 				_interfaces.insert(iface);
 				dtn::core::BundleCore::getInstance().getDiscoveryAgent().registerService(iface, this);
 
-				usbsocket *sock = new usbsocket(iface, _endpointIn, _endpointOut);
+				usbsocket *sock = new usbsocket(iface, _endpointIn, _endpointOut, _frame_length);
 
 				MutexLock c(_connectionsLock);
 				dtn::core::Node nonode = dtn::core::Node();
