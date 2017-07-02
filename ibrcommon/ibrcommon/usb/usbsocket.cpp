@@ -275,10 +275,9 @@ namespace ibrcommon
 
 		while (_run)
 		{
-			timeout = {1, 0};
 			uint8_t *output = new uint8_t[_buffer_length];
 			FD_SET(_internal_fd, &inset);
-			int num_fds = ::select(_internal_fd + 1, &inset, NULL, NULL, &timeout);
+			int num_fds = ::select(_internal_fd + 1, &inset, NULL, NULL, NULL);
 			if (num_fds < 0)
 			{
 				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Error in select" << IBRCOMMON_LOGGER_ENDL;
