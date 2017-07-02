@@ -247,16 +247,11 @@ namespace dtn
 
 		void USBConvergenceLayer::onReceiveBeacon(const ibrcommon::vinterface &iface, const DiscoveryBeacon &beacon) throw ()
 		{
+			/* note: beacon is guaranteed to be from different EID than local */
 			if (_config.getProxy())
 			{
-				for (auto *con : _connections)
-				{
-					/* prevent loop-back */
-					if (!con->match(beacon.getEID()))
-					{
-						con->processBeacon(beacon);
-					}
-				}
+				/* forward beacons received from outside the node to same EID over USB */
+				onAdvertiseBeacon(iface, beacon);
 			}
 		}
 

@@ -51,6 +51,7 @@ namespace dtn
 			bool match(const dtn::data::EID &destination) const;
 			bool match(const dtn::core::NodeEvent &evt) const;
 			bool match(const ibrcommon::usbsocket *sock) const;
+			bool match(const ibrcommon::vinterface &iface) const;
 
 			ibrcommon::usbsocket *getSocket() const;
 			const dtn::core::Node& getNode() const;

@@ -487,6 +487,9 @@ namespace dtn
 								// announce the received beacon
 								agent.onBeaconReceived(beacon);
 
+								/* forward the beacon */
+								agent.onReceivedForward(beacon);
+
 							} catch (const dtn::InvalidDataException&) {
 							} catch (const ibrcommon::IOException&) {
 							}

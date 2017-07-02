@@ -187,10 +187,12 @@ namespace dtn
 			/*
 			 * fake the services of a node that is attached via USB and has the same EID
 			 * they are send to other attached nodes
+			 *
+			 * --> announces services of other platform to outside nodes
 			 */
-			if (beacon.getEID() == dtn::core::BundleCore::local)
+			if (_config.getProxy())
 			{
-				if (_config.getProxy())
+				if (beacon.getEID() == dtn::core::BundleCore::local)
 				{
 					setServices(beacon.getServices());
 				}
@@ -232,7 +234,7 @@ namespace dtn
 					{
 						/* add this CL if list is empty */
 						ss.flush();
-						ss << "usb=" << "host-mode";
+						ss << "usb=" << "client-mode";
 						beacon.addService(dtn::net::DiscoveryService(dtn::core::Node::CONN_DGRAM_USB, ss.str()));
 					}
 
@@ -284,6 +286,11 @@ namespace dtn
 				/* inject accepted bundle into bundle core */
 				dtn::core::BundleCore::getInstance().inject(newBundle.source, newBundle, false);
 			}
+		}
+
+		bool USBConnection::match(const ibrcommon::vinterface &iface) const
+		{
+			return (this->getSocket()->interface == iface);
 		}
 	}
 }

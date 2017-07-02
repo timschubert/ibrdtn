@@ -275,6 +275,7 @@ namespace ibrcommon
 
 		while (_run)
 		{
+			timeout = {2, 0};
 			uint8_t *output = new uint8_t[_buffer_length];
 			FD_SET(_internal_fd, &inset);
 			int num_fds = ::select(_internal_fd + 1, &inset, NULL, NULL, NULL);

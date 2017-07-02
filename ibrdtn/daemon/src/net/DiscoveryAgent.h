@@ -63,6 +63,11 @@ namespace dtn
 
 			DiscoveryBeacon obtainBeacon() const;
 
+			/**
+			 * @brief Forward the beacon if proxying is enabled
+			 */
+			void onReceivedForward(const DiscoveryBeacon &beacon);
+
 		protected:
 			virtual void componentUp() throw ();
 			virtual void componentDown() throw ();
@@ -71,8 +76,6 @@ namespace dtn
 
 		private:
 			void onAdvertise();
-
-			void onReceived(const DiscoveryBeacon &beacon);
 
 			const dtn::daemon::Configuration::Discovery &_config;
 
