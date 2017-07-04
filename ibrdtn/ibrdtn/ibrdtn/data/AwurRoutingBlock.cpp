@@ -98,14 +98,22 @@ namespace dtn
 			return stream;
 		}
 
-		bool AwurRoutingBlock::pathRequested() const
+		bool AwurRoutingBlock::getPathRequested() const
 		{
 			return _flags == 1;
 		}
 
+		void AwurRoutingBlock::setPathRequested(bool req)
+		{
+			if (req)
+				_flags = 1;
+			else
+				_flags = 0;
+		}
+
 		std::istream &AwurRoutingBlock::deserialize(std::istream &stream, const Length &length)
 		{
-			std::vector<SDNV<char> > pfs;
+			std::vector<SDNV<char>> pfs;
 			std::vector<Dictionary::Reference> refs;
 
 			stream >> _flags;

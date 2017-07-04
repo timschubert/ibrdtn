@@ -52,6 +52,7 @@ namespace dtn
 				app_map["debugger"] = 2;
 				app_map["bundle-in-bundle"] = 5;
 				app_map["echo"] = 11;
+				app_map["awur"] = 40;
 				app_map["routing"] = 50;
 				app_map["dtntp"] = 60;
 			}

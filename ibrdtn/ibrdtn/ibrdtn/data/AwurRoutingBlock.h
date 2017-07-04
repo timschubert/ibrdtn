@@ -71,7 +71,8 @@ namespace dtn
 			const AwurHop &popNextHop();
 			void addNextHop(const AwurHop &hop);
 
-			bool pathRequested() const;
+			bool getPathRequested() const;
+			void setPathRequested(bool req);
 
 		protected:
 			AwurRoutingBlock();
