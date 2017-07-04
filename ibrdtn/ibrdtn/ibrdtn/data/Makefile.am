@@ -32,7 +32,8 @@ h_sources = \
 	MemoryBundleSet.h \
 	BundleSetImpl.h \
 	Endianess.h \
-	Endianess.cpp
+	Endianess.cpp \
+	AwurRoutingBlock.h
 
 cc_sources = \
 	Serializer.cpp \
@@ -62,7 +63,8 @@ cc_sources = \
 	TrackingBlock.cpp \
 	SchedulingBlock.cpp \
 	MemoryBundleSet.cpp \
-	BundleSetImpl.cpp
+	BundleSetImpl.cpp \
+	AwurRoutingBlock.cpp
 
 if COMPRESSION
 h_sources += CompressedPayloadBlock.h
