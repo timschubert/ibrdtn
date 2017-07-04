@@ -25,8 +25,8 @@ namespace ibrcommon
 {
 	const std::string usbsocket::TAG = "usbsocket";
 
-	usbsocket::usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, const int buflen)
-			: datagramsocket(-1), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _run(false), _internal_fd(-1), _buffer_length(buflen)
+	usbsocket::usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, size_t buflen)
+	 : datagramsocket(-1), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _internal_fd(-1), _buffer_length(buflen)
 	{
 		basesocket::_state = SOCKET_DOWN;
 	}
@@ -40,7 +40,7 @@ namespace ibrcommon
 		return interface;
 	}
 
-	void usbsocket::up() throw (socket_exception)
+	void usbsocket::up() throw(socket_exception)
 	{
 		if (basesocket::_state == SOCKET_UP)
 		{
@@ -62,30 +62,18 @@ namespace ibrcommon
 		uint8_t *transfer_buffer = new uint8_t[_buffer_length];
 
 		IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Preparing initial in-bound transfer" << IBRCOMMON_LOGGER_ENDL;
-		submit_new_transfer(this->interface.get_handle(), this->ep_in, transfer_buffer, _buffer_length, transfer_in_cb, (void *)&(this->_internal_fd), 0, 0);
-
-		/* start thread listening for out-bound messages */
-		this->start();
+		int *fd = new int;
+		*fd = _internal_fd;
+		submit_new_transfer(this->interface.get_handle(), this->ep_in, transfer_buffer, _buffer_length, transfer_in_cb, (void *) fd, 0, 0);
 
 		basesocket::_state = SOCKET_UP;
-
 	}
 
-	void usbsocket::down() throw (socket_exception)
+	void usbsocket::down() throw(socket_exception)
 	{
 		if (basesocket::_state == SOCKET_DOWN || basesocket::_state == SOCKET_DESTROYED)
 		{
 			throw socket_exception("socket down or destroyed");
-		}
-
-		/* stop thread listening for out-bound messages */
-		try
-		{
-			this->stop();
-			this->join();
-		}
-		catch (ThreadException &)
-		{
 		}
 
 		basesocket::_state = SOCKET_DOWN;
@@ -102,41 +90,41 @@ namespace ibrcommon
 		switch (transfer->status)
 		{
 			case LIBUSB_TRANSFER_ERROR:
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "In-bound transfer encountered error" << IBRCOMMON_LOGGER_ENDL;
-			break;
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "In-bound transfer encountered error" << IBRCOMMON_LOGGER_ENDL;
+				break;
 
 			case LIBUSB_TRANSFER_TIMED_OUT:
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "In-bound transfer timed out" << IBRCOMMON_LOGGER_ENDL;
-			break;
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "In-bound transfer timed out" << IBRCOMMON_LOGGER_ENDL;
+				break;
 
 			case LIBUSB_TRANSFER_CANCELLED:
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "In-bound transfer was cancelled" << IBRCOMMON_LOGGER_ENDL;
-			break;
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "In-bound transfer was cancelled" << IBRCOMMON_LOGGER_ENDL;
+				break;
 
 			case LIBUSB_TRANSFER_STALL:
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "In-bound transfer completed with stalled endpoint" << IBRCOMMON_LOGGER_ENDL;
-			break;
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "In-bound transfer completed with stalled endpoint" << IBRCOMMON_LOGGER_ENDL;
+				break;
 
 			case LIBUSB_TRANSFER_NO_DEVICE:
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "In-bound transfer completed with device lost" << IBRCOMMON_LOGGER_ENDL;
-			break;
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "In-bound transfer completed with device lost" << IBRCOMMON_LOGGER_ENDL;
+				break;
 
 			case LIBUSB_TRANSFER_OVERFLOW:
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "In-bound transfer completed with overflow" << IBRCOMMON_LOGGER_ENDL;
-			break;
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "In-bound transfer completed with overflow" << IBRCOMMON_LOGGER_ENDL;
+				break;
 
 			case LIBUSB_TRANSFER_COMPLETED:
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "In-bound transfer completed successfully" << IBRCOMMON_LOGGER_ENDL;
-			break;
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "In-bound transfer completed successfully" << IBRCOMMON_LOGGER_ENDL;
+				break;
 
 			default:
-			break;
+				break;
 		}
 
-		int fd = *static_cast<int*>(transfer->user_data);
+		int *fd = static_cast<int *>(transfer->user_data);
 		if (transfer->status == LIBUSB_TRANSFER_COMPLETED)
 		{
-			ssize_t err = ::send(fd, transfer->buffer, transfer->actual_length, 0);
+			ssize_t err = ::send(*fd, transfer->buffer, transfer->actual_length, 0);
 			if (err < 0)
 			{
 				IBRCOMMON_LOGGER_TAG(TAG, warning) << "Failed to transfer new data" << IBRCOMMON_LOGGER_ENDL;
@@ -144,14 +132,20 @@ namespace ibrcommon
 			}
 		}
 
+		/* this is very ugly but at least we don't leak memory */
+		int *new_fd = new int;
+		*new_fd = *fd;
+
 		try
 		{
-			submit_new_transfer(transfer->dev_handle, transfer->endpoint, transfer->buffer, transfer->length, transfer_in_cb, transfer->user_data, 0, transfer->timeout);
+			submit_new_transfer(transfer->dev_handle, transfer->endpoint, transfer->buffer, transfer->length, transfer_in_cb, new_fd, 0, transfer->timeout);
 		}
 		catch (ibrcommon::Exception &e)
 		{
 			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "IN: " << e.what() << IBRCOMMON_LOGGER_ENDL;
 		}
+
+		delete fd;
 	}
 
 	void usbsocket::transfer_out_cb(struct libusb_transfer *transfer)
@@ -164,30 +158,20 @@ namespace ibrcommon
 			case LIBUSB_TRANSFER_STALL:
 			case LIBUSB_TRANSFER_NO_DEVICE:
 			case LIBUSB_TRANSFER_OVERFLOW:
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Out-bound transfer completed with error" << IBRCOMMON_LOGGER_ENDL;
-			break;
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Out-bound transfer completed with error" << IBRCOMMON_LOGGER_ENDL;
+				break;
 
 			case LIBUSB_TRANSFER_COMPLETED:
-			IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Out-bound transfer completed successfully" << IBRCOMMON_LOGGER_ENDL;
-			break;
+				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Out-bound transfer completed successfully" << IBRCOMMON_LOGGER_ENDL;
+				break;
 
 			default:
-			break;
+				break;
 		}
-
-		//uint8_t *output = new uint8_t[1000];
-		//int fd = *static_cast<int*>(transfer->user_data);
-		//ssize_t length = ::read(fd, output, 1000);
-		//if (length < 0)
-		//{
-		//	IBRCOMMON_LOGGER_TAG(TAG, warning) << "Failed to read data from socket." << IBRCOMMON_LOGGER_ENDL;
-		//	::close(fd);
-		//	return;
-		//}
-		//submit_new_transfer(transfer->dev_handle, transfer->endpoint, output, length, transfer_out_cb, transfer->user_data, (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK));
 	}
 
-	bool usbsocket::submit_new_transfer(libusb_device_handle *dev_handle, int endpoint, uint8_t *buffer, int length, libusb_transfer_cb_fn cb, void *user_data, int extra_flags, size_t timeout)
+	bool usbsocket::submit_new_transfer(libusb_device_handle *dev_handle, int endpoint, uint8_t *buffer, int length, libusb_transfer_cb_fn cb, void *user_data,
+	                                    int extra_flags, size_t timeout)
 	{
 		libusb_transfer *next_transfer = libusb_alloc_transfer(0);
 		if (next_transfer == NULL)
@@ -196,7 +180,7 @@ namespace ibrcommon
 		}
 
 		libusb_fill_bulk_transfer(next_transfer, dev_handle, endpoint, buffer, length, cb, user_data, timeout);
-		//next_transfer->flags |= LIBUSB_TRANSFER_FREE_BUFFER;
+		// next_transfer->flags |= LIBUSB_TRANSFER_FREE_BUFFER;
 		next_transfer->flags |= LIBUSB_TRANSFER_FREE_TRANSFER;
 
 		int err = libusb_submit_transfer(next_transfer);
@@ -226,7 +210,7 @@ namespace ibrcommon
 		return false;
 	}
 
-	ssize_t usbsocket::recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw (socket_exception)
+	ssize_t usbsocket::recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw(socket_exception)
 	{
 		/* data is ready */
 		ssize_t length = ::recv(datagramsocket::_fd, buf, buflen, flags);
@@ -239,99 +223,37 @@ namespace ibrcommon
 		return length;
 	}
 
-	void usbsocket::sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw (socket_exception)
+	void usbsocket::sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw(socket_exception)
 	{
 		/* check if the socket can handle request */
-		if (datagramsocket::_state != SOCKET_UP || !_run || buflen > _buffer_length)
+		if (datagramsocket::_state != SOCKET_UP)
 		{
 			throw usb_socket_no_device("socket not ready");
 		}
 
-		ssize_t length = ::send(datagramsocket::_fd, buf, buflen, flags);
-		if (length < 0)
+		if (buflen > _buffer_length)
 		{
-			throw usb_socket_error(::strerror(errno));
+			throw usb_socket_error("message too large");
 		}
-		if (length < buflen)
-		{
-			throw usb_socket_error(::strerror(errno));
-		}
+
+		/* libusb will free this buffer, see LIBUSB_TRANSFER_FREE_BUFFER */
+		uint8_t *output = new uint8_t[_buffer_length];
+		::memcpy(output, buf, buflen);
+
+		IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "Submitting new out-bound transfer." << IBRCOMMON_LOGGER_ENDL;
+
+		/* throw all errors from here */
+		submit_new_transfer(this->interface.get_handle(), this->ep_out, output, buflen, transfer_out_cb, (void *) &(this->_internal_fd),
+		                    (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER), 1000);
 	}
 
-	bool usbsocket::operator==(const usbsocket& rhs) const
+	bool usbsocket::operator==(const usbsocket &rhs) const
 	{
 		return this->interface == rhs.interface;
 	}
 
-	bool usbsocket::operator!=(const usbsocket& rhs) const
+	bool usbsocket::operator!=(const usbsocket &rhs) const
 	{
-		return !(*this== rhs);
-	}
-
-	void usbsocket::__cancellation() throw ()
-	{
-		_run = false;
-	}
-
-	void usbsocket::run() throw ()
-	{
-		_run = true;
-		struct timeval timeout;
-		fd_set inset;
-		FD_ZERO(&inset);
-
-		while (_run)
-		{
-			timeout = {2, 0};
-			uint8_t *output = new uint8_t[_buffer_length];
-			FD_SET(_internal_fd, &inset);
-			int num_fds = ::select(_internal_fd + 1, &inset, NULL, NULL, &timeout);
-			if (num_fds < 0)
-			{
-				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Error in select" << IBRCOMMON_LOGGER_ENDL;
-			}
-			else if (num_fds == 0)
-			{
-				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "select timed out" << IBRCOMMON_LOGGER_ENDL;
-			}
-			else
-			{
-				ssize_t length = ::recv(_internal_fd, output, _buffer_length, 0);
-				if (length < 0)
-				{
-					IBRCOMMON_LOGGER_TAG(TAG, warning) << "Failed to read data from internal socket." << IBRCOMMON_LOGGER_ENDL;
-					__cancellation();
-				}
-				else
-				{
-					IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "Submitting new out-bound transfer." << IBRCOMMON_LOGGER_ENDL;
-					try
-					{
-						/* reuse buffer */
-						submit_new_transfer(this->interface.get_handle(), this->ep_out, output, _buffer_length, transfer_out_cb, (void *) &(this->_internal_fd), (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER), 1000);
-					}
-					catch (usb_socket_no_device &e)
-					{
-						IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << "OUT: " << e.what() << IBRCOMMON_LOGGER_ENDL;
-
-						/* resubmit the message that would otherwise be lost */
-						::send(_fd, output, length, 0);
-
-						/* cancel */
-						__cancellation();
-					}
-					catch (usb_socket_error &e)
-					{
-						/* assuming temporary error (LIBUSB_ERROR_BUSY) */
-						IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 70) << e.what() << IBRCOMMON_LOGGER_ENDL;
-						/* resubmit the message that would otherwise be lost */
-						::send(_fd, output, length, 0);
-
-						/* sleep 100 ms */
-						this->sleep(100);
-					}
-				}
-			}
-		}
+		return !(*this == rhs);
 	}
 }

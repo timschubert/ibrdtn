@@ -81,7 +81,7 @@ namespace ibrcommon
 		 : usb_socket_error(msg) {}
 	};
 
-	class usbsocket: public datagramsocket, public JoinableThread
+	class usbsocket: public datagramsocket
 	{
 	public:
 		/**
@@ -93,7 +93,7 @@ namespace ibrcommon
 		 * @throws socket_exception
 		 * @throws usb_device_error
 		 */
-		usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, const int buflen);
+		usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, size_t buflen);
 
 		/**
 		 * Destroys the socket and closes the socket pair.
@@ -118,9 +118,6 @@ namespace ibrcommon
 		 */
 		bool operator!=(const usbsocket& rhs) const;
 
-		virtual void __cancellation() throw ();
-		virtual void run() throw ();
-
 	private:
 		/**
 		 * USB bulk endpoint for incoming transfers
@@ -138,11 +135,6 @@ namespace ibrcommon
 		const usbinterface &interface;
 
 		/**
-		 * The internal socket is read from as long as this is true
-		 */
-		bool _run;
-
-		/**
 		 * Debug tag
 		 */
 		static const std::string TAG;
@@ -150,7 +142,7 @@ namespace ibrcommon
 		/**
 		 * The size of the internal buffers used for transfers
 		 */
-		int _buffer_length;
+		size_t _buffer_length;
 
 		/**
 		 * Callback for libusb to call when finishing an incomming transfer.
