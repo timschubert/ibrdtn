@@ -290,7 +290,7 @@ namespace dtn
 
 		bool USBConnection::match(const ibrcommon::vinterface &iface) const
 		{
-			return (this->getSocket()->interface == iface);
+			return (this->getSocket()->getInterface() == iface);
 		}
 	}
 }

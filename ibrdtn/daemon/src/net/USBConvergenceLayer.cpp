@@ -175,6 +175,7 @@ namespace dtn
 				for (auto &iface : _interfaces)
 				{
 					dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(iface, this);
+					iface.set_down();
 					_interfaces.erase(iface);
 				}
 
@@ -279,6 +280,7 @@ namespace dtn
 
 				//usbinterface iface(usbconnector::get_instance().open_interface(_vendor_id, _product_id, _interfaceNum));
 				usbinterface iface(dev, _interfaceNum);
+				iface.set_up();
 				_interfaces.insert(iface);
 				dtn::core::BundleCore::getInstance().getDiscoveryAgent().registerService(iface, this);
 
@@ -310,6 +312,7 @@ namespace dtn
 					if (iface.get_device() == dev)
 					{
 						dtn::core::BundleCore::getInstance().getDiscoveryAgent().unregisterService(iface, this);
+						iface.set_down();
 						_interfaces.erase(iface);
 						break;
 					}
@@ -320,7 +323,7 @@ namespace dtn
 				for (auto *con : _connections)
 				{
 					/* only one connection per interface */
-					if (con->getSocket()->interface.get_device() == dev)
+					if (con->getSocket()->getInterface().get_device() == dev)
 					{
 						__removeConnection(con);
 						break;
