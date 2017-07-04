@@ -55,8 +55,8 @@ namespace ibrcommon
 		static void usb_fd_removed_callback(int fd, void *con);
 
 		bool hotplug();
-		usbdevice& open(const uint16_t &vendor, const uint16_t &product);
-		usbinterface& open_interface(const uint16_t &vendor, const uint16_t &product, int interfaceNum);
+		usbdevice open(const uint16_t &vendor, const uint16_t &product);
+		usbinterface open_interface(const uint16_t &vendor, const uint16_t &product, int interfaceNum);
 
 		usbconnector(usbconnector const &) = delete;
 		void operator=(usbconnector const &) = delete;
@@ -76,7 +76,7 @@ namespace ibrcommon
 		std::map<usbdevice_cb *, libusb_hotplug_callback_handle> _handles;
 
 		/* libusb does only use POLLIN and POLLOUT events */
-		ibrcommon::Mutex _pollfd_lock;
+		Mutex _pollfd_lock;
 		fd_set _usb_in;
 		fd_set _usb_out;
 		int _high_fd;

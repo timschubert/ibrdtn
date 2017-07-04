@@ -85,21 +85,6 @@ namespace ibrcommon
 	{
 	public:
 		/**
-		 * USB bulk endpoint for incoming transfers
-		 */
-		const uint8_t ep_in;
-
-		/**
-		 * USB bulk endpoint for outgoing transfers
-		 */
-		const uint8_t ep_out;
-
-		/**
-		 * USB interface to transmit transfers on, stores the device handle
-		 */
-		const usbinterface interface;
-
-		/**
 		 * Creates a new usbsocket that is set down.
 		 *
 		 * @param iface interface to use for transfers
@@ -121,6 +106,8 @@ namespace ibrcommon
 		virtual ssize_t recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw (socket_exception);
 		virtual void sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw (socket_exception);
 
+		const usbinterface &getInterface();
+
 		/**
 		 * Compares by interface.
 		 */
@@ -135,6 +122,21 @@ namespace ibrcommon
 		virtual void run() throw ();
 
 	private:
+		/**
+		 * USB bulk endpoint for incoming transfers
+		 */
+		const uint8_t ep_in;
+
+		/**
+		 * USB bulk endpoint for outgoing transfers
+		 */
+		const uint8_t ep_out;
+
+		/**
+		 * USB interface to transmit transfers on, stores the device handle
+		 */
+		const usbinterface &interface;
+
 		/**
 		 * The internal socket is read from as long as this is true
 		 */

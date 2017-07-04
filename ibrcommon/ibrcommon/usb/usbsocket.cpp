@@ -35,6 +35,11 @@ namespace ibrcommon
 	{
 	}
 
+	const usbinterface &usbsocket::getInterface()
+	{
+		return interface;
+	}
+
 	void usbsocket::up() throw (socket_exception)
 	{
 		if (basesocket::_state == SOCKET_UP)
@@ -50,8 +55,6 @@ namespace ibrcommon
 			throw usb_socket_error(::strerror(errno));
 		}
 		datagramsocket::_fd = pair[0];
-		datagramsocket::set_blocking_mode(false, datagramsocket::_fd);
-		datagramsocket::set_blocking_mode(false, _internal_fd);
 
 		_internal_fd = pair[1];
 
@@ -245,6 +248,10 @@ namespace ibrcommon
 		}
 
 		ssize_t length = ::send(datagramsocket::_fd, buf, buflen, flags);
+		if (length < 0)
+		{
+			throw usb_socket_error(::strerror(errno));
+		}
 		if (length < buflen)
 		{
 			throw usb_socket_error(::strerror(errno));
@@ -278,7 +285,7 @@ namespace ibrcommon
 			timeout = {2, 0};
 			uint8_t *output = new uint8_t[_buffer_length];
 			FD_SET(_internal_fd, &inset);
-			int num_fds = ::select(_internal_fd + 1, &inset, NULL, NULL, NULL);
+			int num_fds = ::select(_internal_fd + 1, &inset, NULL, NULL, &timeout);
 			if (num_fds < 0)
 			{
 				IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 80) << "Error in select" << IBRCOMMON_LOGGER_ENDL;

@@ -29,9 +29,6 @@ namespace ibrcommon
 {
 	int usbconnector::libusb_hotplug_cb(struct libusb_context *ctx, libusb_device *device, libusb_hotplug_event event, void *cb)
 	{
-		static Mutex _device_handles_lock;
-		static std::map<std::string, libusb_device_handle *> _device_handles;
-
 		usbdevice_cb *call_this = static_cast<usbdevice_cb *>(cb);
 
 		if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event)
@@ -234,16 +231,17 @@ namespace ibrcommon
 		return _cap_hotplug;
 	}
 
-	usbdevice& usbconnector::open(const uint16_t &vendor, const uint16_t &product)
+	usbdevice usbconnector::open(const uint16_t &vendor, const uint16_t &product)
 	{
 		usbdevice dev(_usb_context, vendor, product);
 		return dev;
 	}
 
-	usbinterface& usbconnector::open_interface(const uint16_t &vendor, const uint16_t &product, int interfaceNum)
+	usbinterface usbconnector::open_interface(const uint16_t &vendor, const uint16_t &product, int interfaceNum)
 	{
 		usbdevice dev(_usb_context, vendor, product);
 		usbinterface iface(dev, interfaceNum);
+		iface.set_up();
 
 		return iface;
 	}

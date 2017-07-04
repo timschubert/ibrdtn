@@ -29,10 +29,6 @@ namespace ibrcommon
 			  _buflen(buflen),
 			  _in_buf(buflen),
 			  out_buf_(buflen)
-			  //_in_buf_free(true),
-			  //_in_buf_len(buflen),
-			  //out_buf_free_(true),
-			  //out_buf_len_(buflen)
 	{
 		_sock.add(sock);
 		_sock.up();
@@ -46,7 +42,7 @@ namespace ibrcommon
 
 	usbstream::~usbstream()
 	{
-		close();
+		_sock.destroy();
 	}
 
 	int usbstream::sync()

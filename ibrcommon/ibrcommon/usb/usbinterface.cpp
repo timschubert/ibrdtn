@@ -53,10 +53,10 @@ namespace ibrcommon
 		}
 
 		err = libusb_open(device, &_handle);
-		//if (err)
-		//{
-		//	throw usb_device_error("failed to open device handle");
-		//}
+		if (err)
+		{
+			throw usb_device_error("failed to open device handle");
+		}
 	}
 
 	void usbdevice::close()
@@ -76,17 +76,10 @@ namespace ibrcommon
 	usbinterface::usbinterface(usbdevice &device, int iface)
 			: _device(device), interface_num(iface)
 	{
-		set_up();
 	}
 
 	usbinterface::~usbinterface()
 	{
-		try
-		{
-			set_down();
-		} catch (std::exception &)
-		{
-		}
 	}
 
 	libusb_device_handle *usbinterface::get_handle() const
