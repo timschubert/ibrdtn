@@ -41,14 +41,17 @@ namespace dtn
 				HPP = 'h',
 			};
 
-			AwurHop(EID eid, Platform platform);
+			AwurHop(const EID &eid, Platform platform, bool pathIsComplete);
 
 			const EID &getEID() const;
 			Platform getPlatform() const;
+			bool getPathComplete() const;
+			void setPathComplete(bool val);
 
 		private:
 			EID _eid;
 			Platform _platform;
+			bool _pathComplete;
 		};
 
 		class AwurRoutingBlock : public Block
@@ -72,14 +75,12 @@ namespace dtn
 			void addNextHop(const AwurHop &hop);
 
 			bool getPathRequested() const;
-			void setPathRequested(bool req);
 
 		protected:
 			AwurRoutingBlock();
 
 		private:
 			std::vector<AwurHop> _chain;
-			uint8_t _flags;
 		};
 
 		static AwurRoutingBlock::Factory __AwurRoutingBlockFactory__;
