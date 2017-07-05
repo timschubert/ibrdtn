@@ -32,8 +32,7 @@ namespace dtn
 			return new AwurRoutingBlock();
 		}
 
-		AwurHop::AwurHop(const EID &eid, Platform platform, bool pathIsComplete)
-			: _eid(eid), _platform(platform), _pathComplete(pathIsComplete)
+		AwurHop::AwurHop(const EID &eid, Platform platform, bool pathIsComplete) : _eid(eid), _platform(platform), _pathComplete(pathIsComplete)
 		{
 		}
 
@@ -73,7 +72,7 @@ namespace dtn
 				const Dictionary::Reference &ref = dict.getRef(hop.getEID());
 
 				/* 1 byte for flags */
-				len += sizeof (char) + ref.first.getLength() + ref.second.getLength();
+				len += sizeof(char) + ref.first.getLength() + ref.second.getLength();
 			}
 
 			len += dict.getSize();
@@ -102,15 +101,21 @@ namespace dtn
 				const Dictionary::Reference &ref = dict.getRef(hop.getEID());
 
 				char flags = 0;
-				if (hop.getPlatform() == AwurHop::HPP) {
+				if (hop.getPlatform() == AwurHop::HPP)
+				{
 					flags |= (1 << 1);
-				} else {
+				}
+				else
+				{
 					flags &= ~(1 << 1);
 				}
 
-				if (hop.getPathComplete()) {
+				if (hop.getPathComplete())
+				{
 					flags |= (1 << 2);
-				} else {
+				}
+				else
+				{
 					flags &= ~(1 << 2);
 				}
 
@@ -165,22 +170,24 @@ namespace dtn
 				AwurHop::Platform pf;
 				bool isComplete = false;
 
-				switch (flagsv[i] & (1 << 1)) {
-				case 1:
-					pf = AwurHop::HPP;
-					break;
-				default:
-					pf= AwurHop::LPP;
-					break;
+				switch (flagsv[i] & (1 << 1))
+				{
+					case 1:
+						pf = AwurHop::HPP;
+						break;
+					default:
+						pf = AwurHop::LPP;
+						break;
 				}
 
-				switch (flagsv[i] & (1 << 2)) {
-				case 1:
-					isComplete = true;
-					break;
-				default:
-					isComplete = false;
-					break;
+				switch (flagsv[i] & (1 << 2))
+				{
+					case 1:
+						isComplete = true;
+						break;
+					default:
+						isComplete = false;
+						break;
 				}
 
 				AwurHop hop(dict.get(refs[i].first, refs[i].second), pf, isComplete);
@@ -192,9 +199,14 @@ namespace dtn
 
 		const AwurHop &AwurRoutingBlock::popNextHop()
 		{
-			const AwurHop &popped = _chain.back();
-			_chain.pop_back();
-			return popped;
+			if (!_chain.empty())
+			{
+				const AwurHop &popped = _chain.back();
+				_chain.pop_back();
+				return popped;
+			} else {
+				throw AwurChainEmptyException();
+			}
 		}
 
 		void AwurRoutingBlock::addNextHop(const AwurHop &hop)

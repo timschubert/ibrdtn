@@ -32,6 +32,18 @@ namespace dtn
 {
 	namespace data
 	{
+		class AwurChainEmptyException : Exception
+		{
+		public:
+			AwurChainEmptyException() : Exception()
+			{
+			}
+
+			virtual ~AwurChainEmptyException() throw()
+			{
+			}
+		};
+
 		class AwurHop
 		{
 		public:
