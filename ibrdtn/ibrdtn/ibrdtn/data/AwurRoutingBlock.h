@@ -25,6 +25,7 @@
 #include "ibrcommon/net/socket.h"
 #include <ibrdtn/api/PlainSerializer.h>
 #include <ibrdtn/data/ExtensionBlock.h>
+#include <functional>
 
 using namespace ibrcommon;
 
@@ -59,6 +60,8 @@ namespace dtn
 			Platform getPlatform() const;
 			bool getPathComplete() const;
 			void setPathComplete(bool val);
+
+			bool operator==(const AwurHop &other) const;
 
 		private:
 			EID _eid;
@@ -98,5 +101,19 @@ namespace dtn
 		static AwurRoutingBlock::Factory __AwurRoutingBlockFactory__;
 	}
 }
+
+namespace std
+{
+	template <> struct hash<dtn::data::AwurHop>
+	{
+		size_t operator()(const dtn::data::AwurHop &k) const
+		{
+			size_t const h1(hash<string>{}(k.getEID().getString()));
+			size_t const h2(hash<char>{}(static_cast<char>(k.getPlatform())));
+			return h1 ^ (h2 << 1);
+		}
+	};
+}
+
 
 #endif

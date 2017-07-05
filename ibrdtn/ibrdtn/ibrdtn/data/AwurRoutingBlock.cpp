@@ -51,6 +51,12 @@ namespace dtn
 			return _pathComplete;
 		}
 
+
+		bool AwurHop::operator==(const AwurHop &other) const
+		{
+			return _eid == other._eid && _platform == other._platform;
+		}
+
 		const block_t AwurRoutingBlock::BLOCK_TYPE = 241;
 
 		AwurRoutingBlock::AwurRoutingBlock() : dtn::data::Block(BLOCK_TYPE)
