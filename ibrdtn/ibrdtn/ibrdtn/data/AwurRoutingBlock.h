@@ -23,9 +23,10 @@
 #define AWUR_ROUTING_BLOCK_H_
 
 #include "ibrcommon/net/socket.h"
+#include <functional>
 #include <ibrdtn/api/PlainSerializer.h>
 #include <ibrdtn/data/ExtensionBlock.h>
-#include <functional>
+#include <deque>
 
 using namespace ibrcommon;
 
@@ -54,19 +55,46 @@ namespace dtn
 				HPP = 'h',
 			};
 
-			AwurHop(const EID &eid, Platform platform, bool pathIsComplete);
+			AwurHop();
+			AwurHop(const EID &eid, Platform platform, const size_t &timeout);
 
 			const EID &getEID() const;
 			Platform getPlatform() const;
-			bool getPathComplete() const;
-			void setPathComplete(bool val);
+			Timeout getSlot() const;
 
 			bool operator==(const AwurHop &other) const;
+			bool operator!=(const AwurHop &other) const;
 
 		private:
 			EID _eid;
 			Platform _platform;
-			bool _pathComplete;
+
+			/* tells the router for which slot to wait before transmitting the bundle */
+			size_t _slot;
+		};
+
+		class AwurPath
+		{
+		public:
+			AwurPath();
+			AwurPath(const deque<AwurHop> &hops);
+			virtual ~AwurPath();
+
+			bool getExpired() const;
+			void expire();
+			void addHop(const AwurHop &hop);
+			void popNextHop();
+			const AwurHop &getDestination() const;
+			const AwurHop &getNextHop() const;
+			const deque<AwurHop> &getHops() const;
+			bool empty() const;
+
+			bool operator==(const AwurHop &other) const;
+			bool operator!=(const AwurHop &other) const;
+
+		private:
+			deque<AwurHop> _path;
+			bool _stale;
 		};
 
 		class AwurRoutingBlock : public Block
@@ -86,8 +114,8 @@ namespace dtn
 			std::ostream &serialize(std::ostream &stream, Length &length) const;
 			std::istream &deserialize(std::istream &stream, const Length &length);
 
-			const AwurHop &popNextHop();
-			void addNextHop(const AwurHop &hop);
+			void setPath(const AwurPath &path);
+			const AwurPath& getPath() const;
 
 			bool getPathRequested() const;
 
@@ -95,25 +123,11 @@ namespace dtn
 			AwurRoutingBlock();
 
 		private:
-			std::vector<AwurHop> _chain;
+			AwurPath _chain;
 		};
 
 		static AwurRoutingBlock::Factory __AwurRoutingBlockFactory__;
 	}
 }
-
-namespace std
-{
-	template <> struct hash<dtn::data::AwurHop>
-	{
-		size_t operator()(const dtn::data::AwurHop &k) const
-		{
-			size_t const h1(hash<string>{}(k.getEID().getString()));
-			size_t const h2(hash<char>{}(static_cast<char>(k.getPlatform())));
-			return h1 ^ (h2 << 1);
-		}
-	};
-}
-
 
 #endif

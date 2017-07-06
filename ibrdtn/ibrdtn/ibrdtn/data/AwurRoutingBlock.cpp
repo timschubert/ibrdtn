@@ -32,7 +32,11 @@ namespace dtn
 			return new AwurRoutingBlock();
 		}
 
-		AwurHop::AwurHop(const EID &eid, Platform platform, bool pathIsComplete) : _eid(eid), _platform(platform), _pathComplete(pathIsComplete)
+		AwurHop::AwurHop() : _eid(), _platform(HPP), _slot(0)
+		{
+		}
+
+		AwurHop::AwurHop(const EID &eid, Platform platform, const size_t &slot) : _eid(eid), _platform(platform), _slot(slot)
 		{
 		}
 
@@ -46,21 +50,30 @@ namespace dtn
 			return _platform;
 		}
 
-		bool AwurHop::getPathComplete() const
+		Timeout AwurHop::getSlot() const
 		{
-			return _pathComplete;
+			return _slot;
 		}
-
 
 		bool AwurHop::operator==(const AwurHop &other) const
 		{
 			return _eid == other._eid && _platform == other._platform;
 		}
 
+		bool AwurHop::operator!=(const AwurHop &other) const
+		{
+			return !(*this == other);
+		}
+
 		const block_t AwurRoutingBlock::BLOCK_TYPE = 241;
 
 		AwurRoutingBlock::AwurRoutingBlock() : dtn::data::Block(BLOCK_TYPE)
 		{
+		}
+
+		bool AwurPath::empty() const
+		{
+			return _path.empty();
 		}
 
 		Length AwurRoutingBlock::getLength() const
@@ -72,13 +85,13 @@ namespace dtn
 
 			Dictionary dict;
 
-			for (const auto &hop : _chain)
+			for (const auto &hop : _chain.getHops())
 			{
 				dict.add(hop.getEID());
 				const Dictionary::Reference &ref = dict.getRef(hop.getEID());
 
 				/* 1 byte for flags */
-				len += sizeof(char) + ref.first.getLength() + ref.second.getLength();
+				len += sizeof(char) + SDNV<Timeout>(hop.getSlot()).getLength() + ref.first.getLength() + ref.second.getLength();
 			}
 
 			len += dict.getSize();
@@ -91,41 +104,30 @@ namespace dtn
 			/* create a dictionary in which to store the EIDs */
 			Dictionary dict;
 
-			for (const auto &hop : _chain)
+			const auto &hops = _chain.getHops();
+
+			for (const auto &hop : hops)
 			{
 				dict.add(hop.getEID());
 			}
 
 			/* the number of hops in the list */
-			dtn::data::Length num_hops(_chain.size());
+			SDNV<Length> num_hops(hops.size());
 			stream << num_hops;
 
 			/* for each hop include the platform, the offset of the scheme part and
 			 * the offset of the SSP */
-			for (const auto &hop : _chain)
+			for (const auto &hop : hops)
 			{
 				const Dictionary::Reference &ref = dict.getRef(hop.getEID());
 
 				char flags = 0;
 				if (hop.getPlatform() == AwurHop::HPP)
 				{
-					flags |= (1 << 1);
-				}
-				else
-				{
-					flags &= ~(1 << 1);
+					flags |= (1 << 7);
 				}
 
-				if (hop.getPathComplete())
-				{
-					flags |= (1 << 2);
-				}
-				else
-				{
-					flags &= ~(1 << 2);
-				}
-
-				stream << flags << ref.first << ref.second;
+				stream << flags << SDNV<Timeout>(hop.getSlot()) << ref.first << ref.second;
 			}
 
 			/* in the end, there will be the dict */
@@ -136,30 +138,25 @@ namespace dtn
 			return stream;
 		}
 
-		bool AwurRoutingBlock::getPathRequested() const
-		{
-			return _chain.begin()->getPathComplete();
-		}
-
-		void AwurHop::setPathComplete(bool val)
-		{
-			_pathComplete = val;
-		}
-
 		std::istream &AwurRoutingBlock::deserialize(std::istream &stream, const Length &length)
 		{
 			std::vector<char> flagsv;
 			std::vector<Dictionary::Reference> refs;
+			std::vector<Timeout> timeouts;
 
-			Length num_hops;
+			SDNV<Length> num_hops;
 			stream >> num_hops;
 
 			/* extract platforms and offsets in order */
-			for (Length i = 0; i < num_hops; i++)
+			for (Length i = 0; i < num_hops.get<Length>(); i++)
 			{
 				char flags;
 				stream >> flags;
 				flagsv.push_back(flags);
+
+				SDNV<Timeout> timeout;
+				stream >> timeout;
+				timeouts.push_back(timeout.get<Timeout>());
 
 				Dictionary::Reference ref;
 				stream >> ref.first >> ref.second;
@@ -171,12 +168,11 @@ namespace dtn
 			stream >> dict;
 
 			/* build the nodes */
-			for (Length i = 0; i < num_hops; i++)
+			for (Length i = 0; i < num_hops.get<Length>(); i++)
 			{
 				AwurHop::Platform pf;
-				bool isComplete = false;
 
-				switch (flagsv[i] & (1 << 1))
+				switch (flagsv[i] & (1 << 7))
 				{
 					case 1:
 						pf = AwurHop::HPP;
@@ -186,38 +182,117 @@ namespace dtn
 						break;
 				}
 
-				switch (flagsv[i] & (1 << 2))
-				{
-					case 1:
-						isComplete = true;
-						break;
-					default:
-						isComplete = false;
-						break;
-				}
-
-				AwurHop hop(dict.get(refs[i].first, refs[i].second), pf, isComplete);
-				_chain.push_back(hop);
+				AwurHop hop(dict.get(refs[i].first, refs[i].second), pf, timeouts[i]);
+				_chain.addHop(hop);
 			}
 
 			return stream;
 		}
 
-		const AwurHop &AwurRoutingBlock::popNextHop()
+		void AwurRoutingBlock::setPath(const AwurPath &path)
 		{
-			if (!_chain.empty())
+			/* make a copy */
+			_chain = path;
+		}
+
+		const AwurPath &AwurRoutingBlock::getPath() const
+		{
+			return _chain;
+		}
+
+		AwurPath::AwurPath(const deque<AwurHop> &path) : _path(path), _stale(false)
+		{
+		}
+
+		AwurPath::~AwurPath()
+		{
+			_stale = true;
+		}
+
+		AwurPath::AwurPath() : _stale(true)
+		{
+		}
+
+		bool AwurPath::getExpired() const
+		{
+			return _path.empty() || _stale;
+		}
+
+		void AwurPath::expire()
+		{
+			_stale = true;
+		}
+
+		const AwurHop &AwurPath::getDestination() const
+		{
+			if (_path.empty())
 			{
-				const AwurHop &popped = _chain.back();
-				_chain.pop_back();
-				return popped;
-			} else {
-				throw AwurChainEmptyException();
+				AwurHop hop;
+				return hop;
+			}
+			else
+			{
+				return _path.back();
 			}
 		}
 
-		void AwurRoutingBlock::addNextHop(const AwurHop &hop)
+		void AwurPath::popNextHop()
 		{
-			_chain.push_back(hop);
+			if (!_path.empty())
+				_path.pop_front();
+		}
+
+		const AwurHop &AwurPath::getNextHop() const
+		{
+			if (!_path.empty())
+				return _path.front();
+			else
+				throw AwurChainEmptyException();
+		}
+
+		bool AwurPath::operator==(const AwurHop &other) const
+		{
+			return this->getDestination() == other;
+		}
+
+		bool AwurPath::operator!=(const AwurHop &other) const
+		{
+			return this->getDestination() != other;
+		}
+
+		void AwurPath::addHop(const AwurHop &hop)
+		{
+			_path.push_back(hop);
+		}
+
+		const deque<AwurHop> &AwurPath::getHops() const
+		{
+			return _path;
 		}
 	}
+}
+
+namespace std
+{
+	template <> struct hash<dtn::data::AwurHop>
+	{
+		typedef dtn::data::AwurHop argument_type;
+		typedef size_t result_type;
+		size_t operator()(const argument_type &k) const
+		{
+			size_t const h1(hash<string>{}(k.getEID().getString()));
+			size_t const h2(hash<char>{}(static_cast<char>(k.getPlatform())));
+			return h1 ^ (h2 << 1);
+		}
+	};
+	template <> struct hash<dtn::data::AwurPath>
+	{
+		typedef dtn::data::AwurPath argument_type;
+		typedef size_t result_type;
+		size_t operator()(const argument_type &k) const
+		{
+			size_t const h1(hash<dtn::data::AwurHop>{}(k.getDestination()));
+			return h1;
+		}
+	};
 }
