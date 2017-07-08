@@ -36,7 +36,7 @@ namespace dtn
 		{
 		}
 
-		AwurHop::AwurHop(const EID &eid, Platform platform, const size_t &slot) : _eid(eid), _platform(platform), _slot(slot)
+		AwurHop::AwurHop(const EID &eid, Platform platform, const size_t &slot = 0) : _eid(eid), _platform(platform), _slot(slot)
 		{
 		}
 
@@ -53,6 +53,24 @@ namespace dtn
 		Timeout AwurHop::getSlot() const
 		{
 			return _slot;
+		}
+
+		bool AwurHop::operator<(const AwurHop &other) const
+		{
+			if (this->_eid == other._eid) {
+				return this->_platform < other._platform;
+			} else {
+				return this->_eid < other._eid;
+			}
+		}
+
+		bool AwurHop::operator>(const AwurHop &other) const
+		{
+			if (this->_eid == other._eid) {
+				return this->_platform > other._platform;
+			} else {
+				return this->_eid > other._eid;
+			}
 		}
 
 		bool AwurHop::operator==(const AwurHop &other) const
@@ -104,12 +122,24 @@ namespace dtn
 			/* create a dictionary in which to store the EIDs */
 			Dictionary dict;
 
+			dict.add(_destination.getEID());
+
 			const auto &hops = _chain.getHops();
 
 			for (const auto &hop : hops)
 			{
 				dict.add(hop.getEID());
 			}
+
+			const Dictionary::Reference &destref = dict.getRef(_destination.getEID());
+
+			char flags = 0;
+			if (_destination.getPlatform() == AwurHop::HPP)
+			{
+				flags |= (1 << 7);
+			}
+
+			stream << flags << destref.first << destref.second;
 
 			/* the number of hops in the list */
 			SDNV<Length> num_hops(hops.size());
@@ -144,13 +174,20 @@ namespace dtn
 			std::vector<Dictionary::Reference> refs;
 			std::vector<Timeout> timeouts;
 
+			char destflags = 0;
+
+			stream >> destflags;
+
+			Dictionary::Reference destref;
+			stream >> destref.first >> destref.second;
+
 			SDNV<Length> num_hops;
 			stream >> num_hops;
 
 			/* extract platforms and offsets in order */
 			for (Length i = 0; i < num_hops.get<Length>(); i++)
 			{
-				char flags;
+				char flags = 0;
 				stream >> flags;
 				flagsv.push_back(flags);
 
@@ -159,6 +196,7 @@ namespace dtn
 				timeouts.push_back(timeout.get<Timeout>());
 
 				Dictionary::Reference ref;
+
 				stream >> ref.first >> ref.second;
 				refs.push_back(ref);
 			}
@@ -167,11 +205,23 @@ namespace dtn
 			Dictionary dict;
 			stream >> dict;
 
+			AwurHop::Platform pf;
+
+			switch (destflags & (1 << 7))
+			{
+			case 1:
+				pf = AwurHop::HPP;
+				break;
+			default:
+				pf = AwurHop::LPP;
+				break;
+			}
+
+			_destination = AwurHop(dict.get(destref.first, destref.second), pf, 0);
+
 			/* build the nodes */
 			for (Length i = 0; i < num_hops.get<Length>(); i++)
 			{
-				AwurHop::Platform pf;
-
 				switch (flagsv[i] & (1 << 7))
 				{
 					case 1:
@@ -200,8 +250,9 @@ namespace dtn
 			return _chain;
 		}
 
-		AwurPath::AwurPath(const deque<AwurHop> &path) : _path(path), _stale(false)
+		const AwurHop &AwurRoutingBlock::getDestination() const
 		{
+			return _destination;
 		}
 
 		AwurPath::~AwurPath()
@@ -244,10 +295,7 @@ namespace dtn
 
 		const AwurHop &AwurPath::getNextHop() const
 		{
-			if (!_path.empty())
-				return _path.front();
-			else
-				throw AwurChainEmptyException();
+			return _path.front();
 		}
 
 		bool AwurPath::operator==(const AwurHop &other) const
@@ -260,6 +308,16 @@ namespace dtn
 			return this->getDestination() != other;
 		}
 
+		bool AwurPath::operator==(const AwurPath &other) const
+		{
+			return this->getDestination() == other.getDestination();
+		}
+
+		bool AwurPath::operator!=(const AwurPath &other) const
+		{
+			return !(*this == other);
+		}
+
 		void AwurPath::addHop(const AwurHop &hop)
 		{
 			_path.push_back(hop);
@@ -270,29 +328,4 @@ namespace dtn
 			return _path;
 		}
 	}
-}
-
-namespace std
-{
-	template <> struct hash<dtn::data::AwurHop>
-	{
-		typedef dtn::data::AwurHop argument_type;
-		typedef size_t result_type;
-		size_t operator()(const argument_type &k) const
-		{
-			size_t const h1(hash<string>{}(k.getEID().getString()));
-			size_t const h2(hash<char>{}(static_cast<char>(k.getPlatform())));
-			return h1 ^ (h2 << 1);
-		}
-	};
-	template <> struct hash<dtn::data::AwurPath>
-	{
-		typedef dtn::data::AwurPath argument_type;
-		typedef size_t result_type;
-		size_t operator()(const argument_type &k) const
-		{
-			size_t const h1(hash<dtn::data::AwurHop>{}(k.getDestination()));
-			return h1;
-		}
-	};
 }

@@ -62,6 +62,8 @@ namespace dtn
 			Platform getPlatform() const;
 			Timeout getSlot() const;
 
+			bool operator<(const AwurHop &other) const;
+			bool operator>(const AwurHop &other) const;
 			bool operator==(const AwurHop &other) const;
 			bool operator!=(const AwurHop &other) const;
 
@@ -77,7 +79,6 @@ namespace dtn
 		{
 		public:
 			AwurPath();
-			AwurPath(const deque<AwurHop> &hops);
 			virtual ~AwurPath();
 
 			bool getExpired() const;
@@ -89,6 +90,8 @@ namespace dtn
 			const deque<AwurHop> &getHops() const;
 			bool empty() const;
 
+			bool operator==(const AwurPath &other) const;
+			bool operator!=(const AwurPath &other) const;
 			bool operator==(const AwurHop &other) const;
 			bool operator!=(const AwurHop &other) const;
 
@@ -114,20 +117,46 @@ namespace dtn
 			std::ostream &serialize(std::ostream &stream, Length &length) const;
 			std::istream &deserialize(std::istream &stream, const Length &length);
 
+			const AwurHop &getDestination() const;
+
 			void setPath(const AwurPath &path);
 			const AwurPath& getPath() const;
-
-			bool getPathRequested() const;
 
 		protected:
 			AwurRoutingBlock();
 
 		private:
+			AwurHop _destination;
 			AwurPath _chain;
 		};
 
 		static AwurRoutingBlock::Factory __AwurRoutingBlockFactory__;
 	}
+}
+
+namespace std
+{
+	template <> struct hash<dtn::data::AwurHop>
+	{
+		typedef dtn::data::AwurHop argument_type;
+		typedef size_t result_type;
+		size_t operator()(const argument_type &k) const
+			{
+				size_t const h1(hash<string>{}(k.getEID().getString()));
+				size_t const h2(hash<char>{}(static_cast<char>(k.getPlatform())));
+				return h1 ^ (h2 << 1);
+			}
+	};
+	template <> struct hash<dtn::data::AwurPath>
+	{
+		typedef dtn::data::AwurPath argument_type;
+		typedef size_t result_type;
+		size_t operator()(const argument_type &k) const
+			{
+				size_t const h1(hash<dtn::data::AwurHop>{}(k.getDestination()));
+				return h1;
+			}
+	};
 }
 
 #endif
