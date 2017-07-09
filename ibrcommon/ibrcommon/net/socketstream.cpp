@@ -57,9 +57,7 @@ namespace ibrcommon
 
 	int socketstream::sync()
 	{
-		int ret = std::char_traits<char>::eq_int_type(this->overflow(
-				std::char_traits<char>::eof()), std::char_traits<char>::eof()) ? -1
-				: 0;
+		int ret = std::char_traits<char>::eq_int_type(this->overflow(std::char_traits<char>::eof()), std::char_traits<char>::eof()) ? -1 : 0;
 
 		return ret;
 	}
@@ -84,12 +82,14 @@ namespace ibrcommon
 			return std::char_traits<char>::not_eof(c);
 		}
 
-		try {
+		try
+		{
 			socketset writeset;
 			_socket.select(NULL, &writeset, NULL, NULL);
 
 			// error checking
-			if (writeset.size() == 0) {
+			if (writeset.size() == 0)
+			{
 				throw socket_exception("no select result returned");
 			}
 
@@ -97,7 +97,7 @@ namespace ibrcommon
 			ssize_t bytes = (iend - ibegin);
 
 			// send the data
-			clientsocket &sock = static_cast<clientsocket&>(**(writeset.begin()));
+			clientsocket &sock = static_cast<clientsocket &>(**(writeset.begin()));
 
 			ssize_t ret = sock.send(&out_buf_[0], (iend - ibegin), 0);
 
@@ -120,13 +120,18 @@ namespace ibrcommon
 				// mark the buffer as free
 				setp(buffer_begin, &out_buf_[0] + _bufsize - 1);
 			}
-		} catch (const vsocket_interrupt &e) {
+		}
+		catch (const vsocket_interrupt &e)
+		{
 			errmsg = ERROR_CLOSED;
 			close();
 			IBRCOMMON_LOGGER_DEBUG_TAG("socketstream", 85) << "select interrupted: " << e.what() << IBRCOMMON_LOGGER_ENDL;
 			throw;
-		} catch (const socket_error &err) {
-			if (err.code() == ERROR_AGAIN) {
+		}
+		catch (const socket_error &err)
+		{
+			if (err.code() == ERROR_AGAIN)
+			{
 				return overflow(c);
 			}
 
@@ -137,9 +142,12 @@ namespace ibrcommon
 			close();
 
 			// create a detailed exception message
-			std::stringstream ss; ss << "send() failed: " << err.code();
+			std::stringstream ss;
+			ss << "send() failed: " << err.code();
 			throw stream_exception(ss.str());
-		} catch (const socket_exception &ex) {
+		}
+		catch (const socket_exception &ex)
+		{
 			// set the last error code
 			errmsg = ERROR_WRITE;
 
@@ -155,24 +163,30 @@ namespace ibrcommon
 
 	std::char_traits<char>::int_type socketstream::underflow()
 	{
-		try {
+		try
+		{
 			socketset readset;
 
-			if (timerisset(&_timeout)) {
+			if (timerisset(&_timeout))
+			{
 				timeval to_copy;
 				::memcpy(&to_copy, &_timeout, sizeof to_copy);
 				_socket.select(&readset, NULL, NULL, &to_copy);
-			} else {
+			}
+			else
+			{
 				_socket.select(&readset, NULL, NULL, NULL);
 			}
 
 			// error checking
-			if (readset.size() == 0) {
-				throw socket_exception("no select result returned");
+			if (readset.size() == 0)
+			{
+				/// throw socket_exception("no select result returned");
+				return std::char_traits<char>::eof();
 			}
 
 			// send the data
-			clientsocket &sock = static_cast<clientsocket&>(**(readset.begin()));
+			clientsocket &sock = static_cast<clientsocket &>(**(readset.begin()));
 
 			// read some bytes
 			ssize_t bytes = sock.recv(&in_buf_[0], _bufsize, 0);
@@ -191,12 +205,16 @@ namespace ibrcommon
 			setg(&in_buf_[0], &in_buf_[0], &in_buf_[0] + bytes);
 
 			return std::char_traits<char>::not_eof(in_buf_[0]);
-		} catch (const vsocket_interrupt &e) {
+		}
+		catch (const vsocket_interrupt &e)
+		{
 			errmsg = ERROR_CLOSED;
 			close();
 			IBRCOMMON_LOGGER_DEBUG_TAG("socketstream", 85) << "select interrupted: " << e.what() << IBRCOMMON_LOGGER_ENDL;
 			return std::char_traits<char>::eof();
-		} catch (const socket_error &err) {
+		}
+		catch (const socket_error &err)
+		{
 			// set the last error code
 			errmsg = err.code();
 
@@ -204,7 +222,9 @@ namespace ibrcommon
 			close();
 
 			IBRCOMMON_LOGGER_DEBUG_TAG("socketstream", 75) << "recv() failed: " << err.code() << IBRCOMMON_LOGGER_ENDL;
-		} catch (const socket_exception &ex) {
+		}
+		catch (const socket_exception &ex)
+		{
 			IBRCOMMON_LOGGER_DEBUG_TAG("socketstream", 75) << "recv() failed: " << ex.what() << IBRCOMMON_LOGGER_ENDL;
 		}
 

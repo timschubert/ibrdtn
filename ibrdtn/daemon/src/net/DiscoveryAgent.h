@@ -63,11 +63,6 @@ namespace dtn
 
 			DiscoveryBeacon obtainBeacon() const;
 
-			/**
-			 * @brief Forward the beacon if proxying is enabled
-			 */
-			void onReceivedForward(const DiscoveryBeacon &beacon);
-
 		protected:
 			virtual void componentUp() throw ();
 			virtual void componentDown() throw ();

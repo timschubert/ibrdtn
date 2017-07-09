@@ -21,16 +21,14 @@
 
 #include "USBConnection.h"
 
+using namespace ibrcommon;
+
 namespace dtn
 {
 	namespace net
 	{
-		USBConnection::USBConnection(ibrcommon::usbsocket *sock, size_t buflen, dtn::core::Node &_node)
-			: _sock(sock),
-			  _in_sequence_number(0),
-			  _out_sequence_number(0),
-			  _node(_node),
-			  _config(daemon::Configuration::getInstance().getUSB())
+		USBConnection::USBConnection(usbstream &stream, dtn::core::Node &_node, USBConnectionCallback &cb)
+		 : _stream(stream), _in_sequence_number(0), _out_sequence_number(0), _node(_node), _config(daemon::Configuration::getInstance().getUSB()), _cb(cb)
 		{
 		}
 
@@ -40,7 +38,7 @@ namespace dtn
 			switch (event.getAction())
 			{
 				case NODE_DATA_ADDED:
-					if (node.has(Node::CONN_DGRAM_USB))
+					if (node.has(Node::CONN_USB))
 					{
 						_node = node;
 						ConnectionEvent::raise(ConnectionEvent::CONNECTION_UP, _node);
@@ -48,12 +46,9 @@ namespace dtn
 					break;
 
 				case NODE_DATA_REMOVED:
-					if (node.has(Node::CONN_DGRAM_USB) && node == _node)
+					if (node.has(Node::CONN_USB) && node == _node)
 					{
 						ConnectionEvent::raise(ConnectionEvent::CONNECTION_DOWN, _node);
-
-						/* reset the faked services */
-						_fakedServices.clear();
 					}
 					break;
 
@@ -86,35 +81,9 @@ namespace dtn
 			return match(evt.getNode());
 		}
 
-		const dtn::core::Node& USBConnection::getNode() const
+		const dtn::core::Node &USBConnection::getNode() const
 		{
 			return _node;
-		}
-
-		void USBConnection::addServices(DiscoveryBeacon &beacon)
-		{
-			ibrcommon::MutexLock l(_fakedServicesLock);
-
-			for (auto &service : _fakedServices)
-			{
-				beacon.addService(service);
-			}
-		}
-
-		void USBConnection::setServices(DiscoveryBeacon::service_list services)
-		{
-			_fakedServices = services;
-		}
-
-		ibrcommon::usbsocket *USBConnection::getSocket() const
-		{
-			return _sock;
-		}
-
-
-		bool USBConnection::match(const ibrcommon::usbsocket *sock) const
-		{
-			return this->_sock == sock;
 		}
 
 		void USBConnection::queue(const dtn::net::BundleTransfer &job)
@@ -154,143 +123,91 @@ namespace dtn
 					dtn::data::Bundle data = storage.get(job.getBundle());
 					dtn::core::FilterContext context;
 					context.setPeer(getNode().getEID());
-					context.setProtocol(dtn::core::Node::CONN_DGRAM_USB);
+					context.setProtocol(dtn::core::Node::CONN_USB);
 
 					/* push bundle through the filter routines */
 					context.setBundle(data);
 					BundleFilter::ACTION ret = dtn::core::BundleCore::getInstance().filter(dtn::core::BundleFilter::OUTPUT, context, data);
 
-					ss.flush();
-					// TODO prepend header
-					DefaultSerializer(ss) << data;
-					std::string buf = ss.str();
-					ibrcommon::vaddress empty = ibrcommon::vaddress();
-					_sock->sendto(buf.c_str(), buf.size(), 0, empty);
-					job.complete();
+					_stream << data;
+
+					if (_stream.good())
+					{
+						job.complete();
+					}
+					else
+					{
+						job.abort(TransferAbortedEvent::REASON_BUNDLE_DELETED);
+					}
 				}
-			} catch (ibrcommon::socket_error &e)
+			}
+			catch (socket_error &e)
 			{
 				/* retry because EAGAIN */
 				//_work.push(job);
 				job.abort(TransferAbortedEvent::REASON_UNDEFINED);
-			} catch (ibrcommon::Exception &e)
+			}
+			catch (Exception &e)
 			{
 				job.abort(TransferAbortedEvent::REASON_UNDEFINED);
 			}
 		}
 
-		void USBConnection::processBeacon(const DiscoveryBeacon &beacon)
+		USBConnection &operator<<(USBConnection &out, const dtn::data::Bundle &bundle)
 		{
-			/* announce the beacon, ignores own beacons, that is from the same EID */
-			dtn::core::BundleCore::getInstance().getDiscoveryAgent().onBeaconReceived(beacon);
+			MutexLock l(out._safeLock);
+			out._stream << 0x0;
+			DefaultSerializer(out._stream) << bundle;
+			return out;
+		}
 
-			/*
-			 * fake the services of a node that is attached via USB and has the same EID
-			 * they are send to other attached nodes
-			 *
-			 * --> announces services of other platform to outside nodes
-			 */
-			if (_config.getProxy())
-			{
-				if (beacon.getEID() == dtn::core::BundleCore::local)
-				{
-					setServices(beacon.getServices());
-				}
-			}
+		USBConnection &operator>>(USBConnection &in, dtn::data::Bundle &bundle)
+		{
+			MutexLock l(in._safeLock);
+			DefaultDeserializer(in._stream) >> bundle;
+			return in;
+		}
+
+		USBConnection &operator<<(USBConnection &out, const DiscoveryBeacon &beacon)
+		{
+			MutexLock l(out._safeLock);
+			out._stream << 0xff;
+			out._stream << beacon;
+			return out;
+		}
+
+		USBConnection &operator>>(USBConnection &in, DiscoveryBeacon &beacon)
+		{
+			MutexLock l(in._safeLock);
+			in._stream >> beacon;
+			return in;
 		}
 
 		void USBConnection::processInput()
 		{
-			char buf[1000];
-
-			ibrcommon::vaddress empty = ibrcommon::vaddress();
-			size_t bytes = _sock->recvfrom(buf, 1000, 0, empty);
-
-			if (bytes == 0)
+			char header;
 			{
-				IBRCOMMON_LOGGER_DEBUG_TAG("USBConnection", 70) << "Empty message received" << IBRCOMMON_LOGGER_ENDL;
+				MutexLock l(_safeLock);
+				_stream >> header;
 			}
 
-			std::stringstream ss;
-
-			ss.write(buf, bytes);
-
-			dtn::data::Bundle bundle;
-			dtn::net::DiscoveryBeacon beacon;
-
-			uint8_t header ;
-			if (ss >> header)
+			if (header == 0)
 			{
-				// TODO check & update sequence number
-				switch (header)
-				{
-				case CONVERGENCE_LAYER_TYPE_DISCOVERY:
-					if (!(ss >> beacon))
-					{
-						throw InvalidDataException("failed to parse discovery beacon");
-					}
-
-					if (beacon.isShort())
-					{
-						/* add this CL if list is empty */
-						ss.flush();
-						ss << "usb=" << "client-mode";
-						beacon.addService(dtn::net::DiscoveryService(dtn::core::Node::CONN_DGRAM_USB, ss.str()));
-					}
-
-					processBeacon(beacon);
-
-					break;
-
-				case CONVERGENCE_LAYER_TYPE_DATA:
-					DefaultDeserializer(ss) >> bundle;
-					if (ss.fail())
-					{
-						throw InvalidDataException("failed to parse bundle");
-					}
-					__processBundle(bundle);
-					break;
-
-				case CONVERGENCE_LAYER_TYPE_ACK:
-					break;
-
-				case CONVERGENCE_LAYER_TYPE_NACK:
-					break;
-
-				case CONVERGENCE_LAYER_TYPE_TEMP_NACK:
-					break;
-				}
+				Bundle b;
+				(*this) >> b;
+				_cb.eventBundleReceived(b);
+			}
+			else
+			{
+				DiscoveryBeacon b = dtn::core::BundleCore::getInstance().getDiscoveryAgent().obtainBeacon();
+				(*this) >> b;
+				_cb.eventBeaconReceived(b);
 			}
 		}
 
-		void USBConnection::__processBundle(Bundle &newBundle)
+		bool USBConnection::isDown() const
 		{
-			/* validate the bundle */
-			try {
-				dtn::core::BundleCore::getInstance().validate(newBundle);
-			}
-			catch (dtn::data::Validator::RejectedException&) {
-				throw InvalidDataException("Bundle was rejected by validator");
-			}
-
-			/* create a filter context */
-			dtn::core::FilterContext context;
-			context.setProtocol(dtn::core::Node::CONN_DGRAM_USB);
-
-			/* push bundle through the filter routines */
-			context.setBundle(newBundle);
-			BundleFilter::ACTION ret = dtn::core::BundleCore::getInstance().filter(dtn::core::BundleFilter::INPUT, context, newBundle);
-
-			if (ret == BundleFilter::ACCEPT)
-			{
-				/* inject accepted bundle into bundle core */
-				dtn::core::BundleCore::getInstance().inject(newBundle.source, newBundle, false);
-			}
-		}
-
-		bool USBConnection::match(const ibrcommon::vinterface &iface) const
-		{
-			return (this->getSocket()->getInterface() == iface);
+			return _stream.bad();
 		}
 	}
 }

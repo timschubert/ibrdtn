@@ -29,10 +29,6 @@ namespace dtn
 		{
 		}
 
-		void DiscoveryBeaconHandler::onReceiveBeacon(const ibrcommon::vinterface &iface, const DiscoveryBeacon &beacon) throw ()
-		{
-		}
-
 		void DiscoveryBeaconHandler::onAdvertiseBeacon(const ibrcommon::vinterface &iface, const DiscoveryBeacon &beacon) throw ()
 		{
 		}

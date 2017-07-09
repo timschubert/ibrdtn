@@ -32,11 +32,11 @@ namespace dtn
 			return new AwurRoutingBlock();
 		}
 
-		AwurHop::AwurHop() : _eid(), _platform(HPP), _slot(0)
+		AwurHop::AwurHop() : _eid(), _platform(HPP), _timeout(0)
 		{
 		}
 
-		AwurHop::AwurHop(const EID &eid, Platform platform, const size_t &slot = 0) : _eid(eid), _platform(platform), _slot(slot)
+		AwurHop::AwurHop(const EID &eid, Platform platform, const size_t &timeout = 0) : _eid(eid), _platform(platform), _timeout(timeout)
 		{
 		}
 
@@ -50,9 +50,9 @@ namespace dtn
 			return _platform;
 		}
 
-		Timeout AwurHop::getSlot() const
+		Timeout AwurHop::getTimeout() const
 		{
-			return _slot;
+			return _timeout;
 		}
 
 		bool AwurHop::operator<(const AwurHop &other) const
@@ -109,7 +109,7 @@ namespace dtn
 				const Dictionary::Reference &ref = dict.getRef(hop.getEID());
 
 				/* 1 byte for flags */
-				len += sizeof(char) + SDNV<Timeout>(hop.getSlot()).getLength() + ref.first.getLength() + ref.second.getLength();
+				len += sizeof(char) + SDNV<Timeout>(hop.getTimeout()).getLength() + ref.first.getLength() + ref.second.getLength();
 			}
 
 			len += dict.getSize();
@@ -157,7 +157,7 @@ namespace dtn
 					flags |= (1 << 7);
 				}
 
-				stream << flags << SDNV<Timeout>(hop.getSlot()) << ref.first << ref.second;
+				stream << flags << SDNV<Timeout>(hop.getTimeout()) << ref.first << ref.second;
 			}
 
 			/* in the end, there will be the dict */
@@ -220,7 +220,7 @@ namespace dtn
 			_destination = AwurHop(dict.get(destref.first, destref.second), pf, 0);
 
 			/* build the nodes */
-			for (Length i = 0; i < num_hops.get<Length>(); i++)
+			for (Length i = 0; i < flagsv.size(); i++)
 			{
 				switch (flagsv[i] & (1 << 7))
 				{

@@ -25,6 +25,7 @@
 #include "ibrcommon/net/vaddress.h"
 #include <libusb-1.0/libusb.h>
 #include <iostream>
+#include <sstream>
 
 namespace ibrcommon
 {
@@ -60,6 +61,7 @@ namespace ibrcommon
 	class usbdevice
 	{
 	public:
+		usbdevice();
 		usbdevice(libusb_context *context, uint16_t vendor, uint16_t product);
 		usbdevice(libusb_device *device);
 		virtual ~usbdevice();
@@ -67,6 +69,9 @@ namespace ibrcommon
 		void close();
 
 		libusb_device_handle *get_handle() const;
+
+		std::string getName() const;
+		bool isNone() const;
 
 		bool operator==(const usbdevice &rhs) const;
 		bool operator!=(const usbdevice &rhs) const;
@@ -90,6 +95,7 @@ namespace ibrcommon
 			virtual void event_link_down(usbinterface &iface) = 0;
 		};
 
+		usbinterface();
 		usbinterface(usbdevice &device, int interface);
 		virtual ~usbinterface();
 

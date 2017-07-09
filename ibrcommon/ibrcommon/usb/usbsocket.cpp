@@ -26,7 +26,7 @@ namespace ibrcommon
 	const std::string usbsocket::TAG = "usbsocket";
 
 	usbsocket::usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, size_t buflen)
-	 : datagramsocket(-1), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _internal_fd(-1), _buffer_length(buflen)
+	 : basesocket(-1), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _internal_fd(-1), _buffer_length(buflen)
 	{
 		basesocket::_state = SOCKET_DOWN;
 	}
@@ -54,9 +54,10 @@ namespace ibrcommon
 		{
 			throw usb_socket_error(::strerror(errno));
 		}
-		datagramsocket::_fd = pair[0];
 
+		_fd = pair[0];
 		_internal_fd = pair[1];
+		this->set_blocking_mode(false, _fd);
 
 		/* prepare the buffer with one pending transfer */
 		uint8_t *transfer_buffer = new uint8_t[_buffer_length];
@@ -78,9 +79,9 @@ namespace ibrcommon
 
 		basesocket::_state = SOCKET_DOWN;
 
-		::close(datagramsocket::_fd);
+		::close(_fd);
 		::close(_internal_fd);
-		datagramsocket::_fd = -1;
+		_fd = -1;
 		_internal_fd = -1;
 	}
 
@@ -210,10 +211,14 @@ namespace ibrcommon
 		return false;
 	}
 
-	ssize_t usbsocket::recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw(socket_exception)
+	ssize_t usbsocket::recv(char *buf, size_t buflen, int flags) throw(socket_exception)
 	{
+		if (this->_state != SOCKET_UP)
+		{
+			throw usb_socket_error("socket not ready");
+		}
 		/* data is ready */
-		ssize_t length = ::recv(datagramsocket::_fd, buf, buflen, flags);
+		ssize_t length = ::recv(this->fd(), buf, buflen, flags);
 
 		if (length < 0)
 		{
@@ -223,17 +228,17 @@ namespace ibrcommon
 		return length;
 	}
 
-	void usbsocket::sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw(socket_exception)
+	ssize_t usbsocket::send(const char *buf, size_t buflen, int flags) throw(socket_exception)
 	{
 		/* check if the socket can handle request */
-		if (datagramsocket::_state != SOCKET_UP)
+		if (this->_state != SOCKET_UP)
 		{
-			throw usb_socket_no_device("socket not ready");
+			throw usb_socket_error("socket not ready");
 		}
 
 		if (buflen > _buffer_length)
 		{
-			throw usb_socket_error("message too large");
+			buflen = _buffer_length;
 		}
 
 		/* libusb will free this buffer, see LIBUSB_TRANSFER_FREE_BUFFER */
@@ -243,8 +248,14 @@ namespace ibrcommon
 		IBRCOMMON_LOGGER_DEBUG_TAG(TAG, 90) << "Submitting new out-bound transfer." << IBRCOMMON_LOGGER_ENDL;
 
 		/* throw all errors from here */
-		submit_new_transfer(this->interface.get_handle(), this->ep_out, output, buflen, transfer_out_cb, (void *) &(this->_internal_fd),
+		bool res = submit_new_transfer(this->interface.get_handle(), this->ep_out, output, buflen, transfer_out_cb, (void *) &(this->_internal_fd),
 		                    (LIBUSB_TRANSFER_ADD_ZERO_PACKET | LIBUSB_TRANSFER_SHORT_NOT_OK | LIBUSB_TRANSFER_FREE_BUFFER), 1000);
+		if (!res)
+		{
+			throw usb_socket_error("failed to submit transfer");
+		}
+
+		return buflen;
 	}
 
 	bool usbsocket::operator==(const usbsocket &rhs) const
@@ -255,5 +266,10 @@ namespace ibrcommon
 	bool usbsocket::operator!=(const usbsocket &rhs) const
 	{
 		return !(*this == rhs);
+	}
+
+	size_t usbsocket::getMTU() const
+	{
+		return _buffer_length;
 	}
 }

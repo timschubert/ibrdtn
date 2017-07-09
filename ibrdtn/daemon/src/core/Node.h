@@ -59,7 +59,7 @@ namespace dtn
 				CONN_P2P_WIFI = 10,
 				CONN_P2P_BT = 11,
 				CONN_EMAIL = 12,
-				CONN_DGRAM_USB = 13
+				CONN_USB = 13
 			};
 
 			/**

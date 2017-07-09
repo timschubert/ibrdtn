@@ -24,16 +24,18 @@
 
 #include "BundleTransfer.h"
 #include "Configuration.h"
+#include "ConnectionEvent.h"
 #include "DiscoveryService.h"
 #include "core/BundleCore.h"
 #include "core/Node.h"
 #include "core/NodeEvent.h"
 #include "ibrcommon/Logger.h"
 #include "ibrcommon/net/dgramheader.h"
-#include "ibrcommon/usb/usbstream.h"
 #include "ibrcommon/thread/Mutex.h"
+#include "ibrcommon/usb/usbstream.h"
 #include "storage/BundleStorage.h"
-#include "ConnectionEvent.h"
+
+using namespace ibrcommon;
 
 namespace dtn
 {
@@ -42,7 +44,14 @@ namespace dtn
 		class USBConnection : public dtn::core::EventReceiver<dtn::core::NodeEvent>
 		{
 		public:
-			USBConnection(ibrcommon::usbsocket *sock, size_t buflen, dtn::core::Node &node);
+			class USBConnectionCallback
+			{
+			public:
+				virtual void eventBundleReceived(Bundle &b) = 0;
+				virtual void eventBeaconReceived(DiscoveryBeacon &b) = 0;
+			};
+
+			USBConnection(usbstream &stream, dtn::core::Node &node, USBConnectionCallback &cb);
 			virtual ~USBConnection();
 
 			void raiseEvent(const NodeEvent &event) throw();
@@ -50,72 +59,46 @@ namespace dtn
 			bool match(const dtn::core::Node &node) const;
 			bool match(const dtn::data::EID &destination) const;
 			bool match(const dtn::core::NodeEvent &evt) const;
-			bool match(const ibrcommon::usbsocket *sock) const;
-			bool match(const ibrcommon::vinterface &iface) const;
 
-			ibrcommon::usbsocket *getSocket() const;
 			const dtn::core::Node& getNode() const;
-
-			void setServices(DiscoveryBeacon::service_list services);
-			void addServices(DiscoveryBeacon &beacon);
 
 			void queue(const dtn::net::BundleTransfer &transfer);
 			void processJobs();
-
-			/**
-			 * Process input coming from a connection
-			 *
-			 * @param con connection to obtain the input from
-			 */
 			void processInput();
 
-			/**
-			 * Handle an incoming discovery beacon
-			 */
-			void processBeacon(const DiscoveryBeacon &beacon);
+			bool isDown() const;
 
-			//friend USBConnection& operator<<(USBConnection &out, const dtn::data::Bundle &bundle);
-			//friend USBConnection& operator<<(USBConnection &out, const DiscoveryBeacon &beacon);
+			friend USBConnection &operator<<(USBConnection &out, const dtn::data::Bundle &bundle);
 
-			//friend USBConnection& operator>>(USBConnection &in, dtn::data::Bundle &bundle);
-			//friend USBConnection& operator>>(USBConnection &in, DiscoveryBeacon &beacon);
+			friend USBConnection &operator<<(USBConnection &out, const DiscoveryBeacon &beacon);
 
 		private:
-			ibrcommon::usbsocket *_sock;
+			Mutex _safeLock;
+			usbstream &_stream;
 
-			ibrcommon::Queue<dtn::net::BundleTransfer> _work;
+			Queue<dtn::net::BundleTransfer> _work;
 
 			dtn::core::Node &_node;
 			uint8_t _in_sequence_number;
 			uint8_t _out_sequence_number;
 
 			/**
-			 * for locking faked services
-			 */
-			ibrcommon::Mutex _fakedServicesLock;
-
-			/**
-			 * faked services
-			 */
-			DiscoveryBeacon::service_list _fakedServices;
-
-			/**
 			 * usb covergence layer config
 			 */
 			const daemon::Configuration::USB &_config;
 
-			/**
-			 * Process incoming bundle
-			 */
-			void __processBundle(Bundle &newBundle);
+			USBConnectionCallback &_cb;
 
 			/**
 			 * Process a bundle transfer
 			 */
 			void __processJob(BundleTransfer &job);
+
+			friend USBConnection &operator>>(USBConnection &in, dtn::data::Bundle &bundle);
+
+			friend USBConnection &operator>>(USBConnection &in, DiscoveryBeacon &beacon);
 		};
 	}
-
 }
 
 #endif /* IBRDTN_DAEMON_SRC_NET_USBCONNECTION_H_ */

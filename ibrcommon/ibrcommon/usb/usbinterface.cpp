@@ -23,6 +23,16 @@
 
 namespace ibrcommon
 {
+	usbdevice::usbdevice()
+		: _handle(NULL)
+	{
+	}
+
+	bool usbdevice::isNone() const
+	{
+		return _handle == NULL;
+	}
+
 	usbdevice::usbdevice(libusb_context *context, uint16_t vendor, uint16_t product)
 	{
 		_handle = libusb_open_device_with_vid_pid(context, vendor, product);
@@ -59,6 +69,20 @@ namespace ibrcommon
 		}
 	}
 
+	std::string usbdevice::getName() const
+	{
+		char buf[1000];
+		buf[0] = '\0';
+
+		if (_handle) {
+			libusb_get_string_descriptor_ascii(_handle, _desc.iSerialNumber, (uint8_t *) buf, sizeof (buf));
+		}
+
+		std::stringstream ss;
+		ss << buf;
+		return ss.str();
+	}
+
 	void usbdevice::close()
 	{
 		libusb_close(_handle);
@@ -73,8 +97,13 @@ namespace ibrcommon
 		return _handle;
 	}
 
+	usbinterface::usbinterface()
+		: vinterface(vinterface::ANY)
+	{
+	}
+
 	usbinterface::usbinterface(usbdevice &device, int iface)
-			: _device(device), interface_num(iface)
+		: vinterface(device.getName()), _device(device), interface_num(iface)
 	{
 	}
 

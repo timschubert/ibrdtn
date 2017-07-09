@@ -56,7 +56,7 @@ namespace ibrcommon
 
 		bool hotplug();
 		usbdevice open(const uint16_t &vendor, const uint16_t &product);
-		usbinterface open_interface(const uint16_t &vendor, const uint16_t &product, int interfaceNum);
+		usbinterface open(const uint16_t &vendor, const uint16_t &product, int interfaceNum);
 
 		usbconnector(usbconnector const &) = delete;
 		void operator=(usbconnector const &) = delete;

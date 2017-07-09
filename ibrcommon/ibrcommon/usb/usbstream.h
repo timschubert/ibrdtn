@@ -34,7 +34,7 @@ namespace ibrcommon
 	class usbstream : public std::basic_streambuf<char, std::char_traits<char> >, public std::iostream
 	{
 	public:
-		usbstream(usbsocket *sock, const size_t buflen);
+		usbstream(usbsocket *sock);
 		virtual ~usbstream();
 
 	protected:
@@ -47,7 +47,6 @@ namespace ibrcommon
 		virtual std::char_traits<char>::int_type underflow();
 
 	private:
-		socket_error_code error;
 		size_t _buflen;
 
 		std::vector<char> _in_buf;

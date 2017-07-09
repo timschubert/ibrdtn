@@ -23,21 +23,16 @@
 
 namespace ibrcommon
 {
-	usbstream::usbstream(usbsocket *sock, const size_t buflen)
-			: std::iostream(this),
-			  error(ERROR_NONE),
-			  _buflen(buflen),
-			  _in_buf(buflen),
-			  out_buf_(buflen)
+	usbstream::usbstream(usbsocket *sock) : std::iostream(this), _buflen(sock->getMTU()), _in_buf(_buflen), out_buf_(_buflen)
 	{
-		_sock.add(sock);
-		_sock.up();
+		/* set put area to free */
+		setp(&out_buf_[0], &out_buf_[0] + _buflen - 1);
 
 		/* set get area to empty */
 		setg(0, 0, 0);
 
-		/* set put area to free */
-		setp(&out_buf_[0], &out_buf_[0] + _buflen - 1);
+		_sock.add(sock);
+		_sock.up();
 	}
 
 	usbstream::~usbstream()
@@ -73,60 +68,87 @@ namespace ibrcommon
 
 		try
 		{
-			vaddress empty;
 			socketset writeset;
 			_sock.select(NULL, &writeset, NULL, NULL);
 
 			if (writeset.size() == 0)
 			{
 				throw socket_exception("no select results returned");
-
 			}
 
+			ssize_t bytes = (iend - ibegin);
+
 			usbsocket *sock = static_cast<usbsocket *>(*(writeset.begin()));
-			sock->sendto(&out_buf_[0], iend - ibegin, 0, empty);
+			ssize_t send = sock->send(&out_buf_[0], bytes, 0);
 
-			/* update the position of the free buffer */
-			char *buffer_begin = ibegin;
-			setp(buffer_begin, &out_buf_[0] + _buflen - 1);
+			if (send < bytes)
+			{
+				// we did not sent all bytes
+				char *resched_begin = ibegin + send;
+				char *resched_end = iend;
 
-		} catch (vsocket_timeout &e)
+				// bytes left to send
+				size_t bytes_left = resched_end - resched_begin;
+
+				// move the data to the begin of the buffer
+				::memcpy(ibegin, resched_begin, bytes_left);
+
+				// new free buffer
+				char *buffer_begin = ibegin + bytes_left;
+
+				// mark the buffer as free
+				setp(buffer_begin, &out_buf_[0] + _buflen - 1);
+			}
+		}
+		catch (vsocket_timeout &e)
 		{
 			/* interrupted by timeout is temporary failure */
 			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
-			error = ERROR_AGAIN;
+			this->setstate(failbit);
 			return overflow(c);
-		} catch (vsocket_interrupt &e)
+		}
+		catch (vsocket_interrupt &e)
 		{
 			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 85) << "select interrupted: " << e.what() << IBRCOMMON_LOGGER_ENDL;
-			error = ERROR_CLOSED;
+			this->setstate(badbit);
 			close();
 			throw;
-		} catch (usb_socket_no_device &e)
+		}
+		catch (usb_socket_no_device &e)
 		{
 			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
-			error = ERROR_CLOSED;
+			this->setstate(badbit);
 			close();
-			throw e;
-		} catch (socket_error &e)
+			throw;
+		}
+		catch (usb_device_error &e)
+		{
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
+			this->setstate(badbit);
+			close();
+			throw;
+		}
+		catch (socket_error &e)
 		{
 			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
 
 			/* temporary failure */
 			if (e.code() == ERROR_AGAIN)
 			{
+				this->setstate(failbit);
 				return overflow(c);
 			}
 
 			/* permanent failure */
+			this->setstate(badbit);
 			close();
-			error = e.code();
-			throw stream_exception(e.what());
-		} catch (socket_exception &e)
+		}
+		catch (socket_exception &e)
 		{
 			/* other error */
+			this->setstate(badbit);
 			close();
-			throw stream_exception(e.what());
+			throw;
 		}
 
 		return std::char_traits<char>::not_eof(c);
@@ -139,8 +161,6 @@ namespace ibrcommon
 
 	std::char_traits<char>::int_type usbstream::underflow()
 	{
-		vaddress empty;
-
 		try
 		{
 			socketset readset;
@@ -152,50 +172,61 @@ namespace ibrcommon
 			}
 
 			usbsocket *sock = static_cast<usbsocket *>(*(readset.begin()));
-			ssize_t bytes = sock->recvfrom(&_in_buf[0], _buflen, 0, empty);
+			ssize_t bytes = sock->recv(&_in_buf[0], _buflen, 0);
 
 			if (bytes == 0)
 			{
-				//error = ERROR_CLOSED;
-				//close();
 				IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 85) << "receive returned zero: " << errno << IBRCOMMON_LOGGER_ENDL;
-				//return std::char_traits<char>::eof();
+				this->setstate(badbit);
+				close();
+				return std::char_traits<char>::eof();
 			}
 
 			setg(&_in_buf[0], &_in_buf[0], &_in_buf[0] + bytes);
 
 			return std::char_traits<char>::not_eof(_in_buf[0]);
-		} catch (vsocket_timeout &e)
+		}
+		catch (vsocket_timeout &e)
 		{
 			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
-			error = ERROR_AGAIN;
-			return std::char_traits<char>::not_eof(_in_buf[0]);
-		} catch (vsocket_interrupt &e)
+			this->setstate(failbit);
+		}
+		catch (vsocket_interrupt &e)
 		{
 			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 85) << "select interrupted: " << e.what() << IBRCOMMON_LOGGER_ENDL;
-			error = ERROR_CLOSED;
+			this->setstate(badbit);
 			close();
-		} catch (usb_socket_no_device &e)
+		}
+		catch (usb_socket_no_device &e)
 		{
 			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
-			error = ERROR_CLOSED;
+			this->setstate(badbit);
 			close();
-			throw e;
-		} catch (socket_error &e)
+		}
+		catch (usb_device_error &e)
+		{
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
+			this->setstate(badbit);
+			close();
+		}
+		catch (socket_error &e)
 		{
 			/* set error code from socket */
 			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
-			error = e.code();
 			if (e.code() == ERROR_AGAIN)
 			{
+				this->setstate(failbit);
 				return std::char_traits<char>::not_eof(_in_buf[0]);
 			}
 
+			this->setstate(badbit);
 			close();
-			throw e;
-		} catch (socket_exception &e)
+		}
+		catch (socket_exception &e)
 		{
+			this->setstate(badbit);
 			IBRCOMMON_LOGGER_DEBUG_TAG("usbstream", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
+			close();
 		}
 
 		return std::char_traits<char>::eof();

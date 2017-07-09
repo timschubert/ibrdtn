@@ -29,17 +29,24 @@ namespace ibrcommon
 {
 	int usbconnector::libusb_hotplug_cb(struct libusb_context *ctx, libusb_device *device, libusb_hotplug_event event, void *cb)
 	{
-		usbdevice_cb *call_this = static_cast<usbdevice_cb *>(cb);
+		try
+		{
+			usbdevice_cb *call_this = static_cast<usbdevice_cb *>(cb);
 
-		if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event)
-		{
-			usbdevice dev(device);
-			call_this->device_discovered(dev);
+			if (LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED == event)
+			{
+				usbdevice dev(device);
+				call_this->device_discovered(dev);
+			}
+			else if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT)
+			{
+				usbdevice dev(device);
+				call_this->device_lost(dev);
+			}
 		}
-		else if (event == LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT)
+		catch (std::exception &e)
 		{
-			usbdevice dev(device);
-			call_this->device_lost(dev);
+			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector", 80) << e.what() << IBRCOMMON_LOGGER_ENDL;
 		}
 
 		return 0;
@@ -64,10 +71,9 @@ namespace ibrcommon
 		/* register callback for new device; do not save handle do not need it */
 		libusb_hotplug_callback_handle cb_handle;
 
-		int err = libusb_hotplug_register_callback(_usb_context,
-				static_cast<libusb_hotplug_event>(LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT), LIBUSB_HOTPLUG_NO_FLAGS, vendor,
-				product,
-				LIBUSB_HOTPLUG_MATCH_ANY, libusb_hotplug_cb, static_cast<void *>(cb), &cb_handle);
+		int err = libusb_hotplug_register_callback(
+		  _usb_context, static_cast<libusb_hotplug_event>(LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED | LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT), LIBUSB_HOTPLUG_NO_FLAGS,
+		  vendor, product, LIBUSB_HOTPLUG_MATCH_ANY, libusb_hotplug_cb, static_cast<void *>(cb), &cb_handle);
 
 		if (err < LIBUSB_SUCCESS)
 		{
@@ -114,14 +120,15 @@ namespace ibrcommon
 		if (err < 0)
 		{
 			IBRCOMMON_LOGGER_DEBUG_TAG("usbconnector", 80) << strerror(err) << IBRCOMMON_LOGGER_ENDL;
-			//throw USBError(static_cast<libusb_error>(err));
+			// throw USBError(static_cast<libusb_error>(err));
 		}
 		else if (err == 0) // Linux and Darwin Kernels
 		{
 			timeout = {1, 0};
 			select_timeout = &timeout;
-			//select_timeout = NULL;
-		} else
+			// select_timeout = NULL;
+		}
+		else
 		{
 			select_timeout = &timeout;
 		}
@@ -180,7 +187,7 @@ namespace ibrcommon
 		}
 	}
 
-	usbconnector& usbconnector::get_instance()
+	usbconnector &usbconnector::get_instance()
 	{
 		static usbconnector _instance;
 		return _instance;
@@ -237,7 +244,7 @@ namespace ibrcommon
 		return dev;
 	}
 
-	usbinterface usbconnector::open_interface(const uint16_t &vendor, const uint16_t &product, int interfaceNum)
+	usbinterface usbconnector::open(const uint16_t &vendor, const uint16_t &product, int interfaceNum)
 	{
 		usbdevice dev(_usb_context, vendor, product);
 		usbinterface iface(dev, interfaceNum);

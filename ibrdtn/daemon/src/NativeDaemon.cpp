@@ -1478,7 +1478,7 @@ namespace dtn
 #endif
 
 #ifdef HAVE_USB
-						case dtn::daemon::Configuration::NetConfig::NETWORK_DGRAM_USB:
+						case dtn::daemon::Configuration::NetConfig::NETWORK_USB:
 						{
 							try
 							{

@@ -60,7 +60,7 @@ namespace dtn
 
 			const EID &getEID() const;
 			Platform getPlatform() const;
-			Timeout getSlot() const;
+			Timeout getTimeout() const;
 
 			bool operator<(const AwurHop &other) const;
 			bool operator>(const AwurHop &other) const;
@@ -71,8 +71,8 @@ namespace dtn
 			EID _eid;
 			Platform _platform;
 
-			/* tells the router for which slot to wait before transmitting the bundle */
-			size_t _slot;
+			/* tells the router when to forward the bundle */
+			size_t _timeout;
 		};
 
 		class AwurPath

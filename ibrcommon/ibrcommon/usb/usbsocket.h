@@ -81,7 +81,7 @@ namespace ibrcommon
 		 : usb_socket_error(msg) {}
 	};
 
-	class usbsocket: public datagramsocket
+	class usbsocket: public basesocket
 	{
 	public:
 		/**
@@ -103,8 +103,8 @@ namespace ibrcommon
 		void up() throw (socket_exception);
 		void down() throw (socket_exception);
 
-		virtual ssize_t recvfrom(char *buf, size_t buflen, int flags, ibrcommon::vaddress &addr) throw (socket_exception);
-		virtual void sendto(const char *buf, size_t buflen, int flags, const ibrcommon::vaddress &addr) throw (socket_exception);
+		virtual ssize_t recv(char *buf, size_t buflen, int flags) throw (socket_exception);
+		virtual ssize_t send(const char *buf, size_t buflen, int flags) throw (socket_exception);
 
 		const usbinterface &getInterface();
 
@@ -117,6 +117,11 @@ namespace ibrcommon
 		 * Compares by interface.
 		 */
 		bool operator!=(const usbsocket& rhs) const;
+
+		/**
+		 * @brief Get the Maximum Transfer Unit (MTU) of the socket
+		 */
+		size_t getMTU() const;
 
 	private:
 		/**

@@ -23,9 +23,10 @@
 #define USBCONVERGENCELAYER_H_
 
 #include "Component.h"
+#include "ConvergenceLayer.h"
 #include "DiscoveryBeacon.h"
-#include "USBService.h"
 #include "USBConnection.h"
+#include "USBService.h"
 #include "core/BundleCore.h"
 #include "core/BundleEvent.h"
 #include "ibrcommon/Exceptions.h"
@@ -33,11 +34,10 @@
 #include "ibrcommon/net/vaddress.h"
 #include "ibrcommon/net/vinterface.h"
 #include "ibrcommon/usb/usbconnector.h"
+#include "ibrcommon/usb/usbinterface.h"
 #include "ibrcommon/usb/usbsocket.h"
 #include "ibrcommon/usb/usbstream.h"
-#include "ibrcommon/usb/usbinterface.h"
 #include "ibrdtn/data/Serializer.h"
-#include "ConvergenceLayer.h"
 
 using namespace ibrcommon;
 
@@ -48,14 +48,19 @@ namespace dtn
 		class USBBundleError : public ibrcommon::Exception
 		{
 		public:
-			USBBundleError() {}
-			USBBundleError(const char *msg) : ibrcommon::Exception(msg) {}
+			USBBundleError()
+			{
+			}
+			USBBundleError(const char *msg) : ibrcommon::Exception(msg)
+			{
+			}
 		};
 
 		class USBConvergenceLayer : public ConvergenceLayer,
 		                            public DiscoveryBeaconHandler,
 		                            public usbconnector::usbdevice_cb,
-		                            public dtn::daemon::IndependentComponent
+		                            public dtn::daemon::IndependentComponent,
+					    public USBConnection::USBConnectionCallback
 		{
 		public:
 			static const std::string TAG;
@@ -72,7 +77,6 @@ namespace dtn
 			virtual void getStats(ConvergenceLayer::stats_data &data) const;
 
 			/** @see DiscoveryBeaconHandler */
-			virtual void onReceiveBeacon(const ibrcommon::vinterface &iface, const DiscoveryBeacon &beacon) throw ();
 			virtual void onUpdateBeacon(const vinterface &iface, DiscoveryBeacon &beacon) throw(NoServiceHereException);
 			virtual void onAdvertiseBeacon(const vinterface &iface, const DiscoveryBeacon &beacon) throw();
 
@@ -84,6 +88,9 @@ namespace dtn
 			 * @see Component::getName()
 			 */
 			virtual const std::string getName() const;
+
+			void eventBundleReceived(Bundle &b);
+			void eventBeaconReceived(DiscoveryBeacon &b);
 
 		protected:
 			void __cancellation() throw();
@@ -140,7 +147,7 @@ namespace dtn
 			 *
 			 * @see _connections
 			 */
-			std::set<usbinterface> _interfaces;
+			usbinterface _interface;
 
 			/**
 			 * Locks access to connections
@@ -150,12 +157,7 @@ namespace dtn
 			/**
 			 * Stream to the USB interface that the CL is connected to
 			 */
-			std::set<USBConnection *> _connections;
-
-			/**
-			 * vsocket for polling of USB sockets
-			 */
-			vsocket _socket;
+			USBConnection *_connection;
 
 			/**
 			 * The default frame length
@@ -167,18 +169,12 @@ namespace dtn
 			 *
 			 * @param con connection with error condition
 			 */
-			void __processError(USBConnection *con);
-
-			/**
-			 * Process an incoming bundle
-			 */
-			void __processIncomingBundle(Bundle &bundle);
+			void __processError();
 
 			/**
 			 * Remove a connection
 			 */
 			void __removeConnection(USBConnection *con);
-
 		};
 	}
 }

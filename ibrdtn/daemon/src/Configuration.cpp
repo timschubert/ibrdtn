@@ -14,7 +14,7 @@
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
+ * See the License for the specific language governing permissionbe0ae172eacab47712a29e7202b39c38e4118ef6s and
  * limitations under the License.
  *
  */
@@ -84,7 +84,7 @@ namespace dtn
 		{}
 
 		Configuration::Discovery::Discovery()
-		 : _enabled(true), _interval(5), _announce(true), _short(false), _version(2), _crosslayer(false), _gateway(false) {}
+		 : _enabled(true), _interval(5), _announce(true), _short(false), _version(2), _crosslayer(false) {}
 
 		Configuration::Debug::Debug()
 		 : _enabled(false), _quiet(false), _level(0), _profiling(false) {}
@@ -415,7 +415,6 @@ namespace dtn
 			_short = (conf.read<int>("discovery_short", 0) == 1);
 			_version = conf.read<int>("discovery_version", 2);
 			_crosslayer = (conf.read<std::string>("discovery_crosslayer", "no") == "yes");
-			_gateway = (conf.read<std::string>("discovery_proxy", "no") == "yes");
 		}
 
 		void Configuration::Logger::load(const ibrcommon::ConfigFile &conf)
@@ -638,11 +637,6 @@ namespace dtn
 			return _crosslayer;
 		}
 
-		bool Configuration::Discovery::gateway() const
-		{
-			return _gateway;
-		}
-
 		Configuration::NetConfig Configuration::getAPIInterface() const
 		{
 			Configuration::NetConfig nc("api", Configuration::NetConfig::NETWORK_TCP);
@@ -733,7 +727,7 @@ namespace dtn
 				if (protocol == "dgram:udp") p = Node::CONN_DGRAM_UDP;
 				if (protocol == "dgram:ethernet") p = Node::CONN_DGRAM_ETHERNET;
 				if (protocol == "dgram:lowpan") p = Node::CONN_DGRAM_LOWPAN;
-				if (protocol == "dgram:usb") p = Node::CONN_DGRAM_USB;
+				if (protocol == "usb") p = Node::CONN_USB;
 				if (protocol == "email") {
 					p = Node::CONN_EMAIL;
 					ss.clear();
@@ -870,7 +864,7 @@ namespace dtn
 					if (type_name == "lowpan") type = Configuration::NetConfig::NETWORK_LOWPAN;
 					if (type_name == "file") type = Configuration::NetConfig::NETWORK_FILE;
 					if (type_name == "dgram:udp") type = Configuration::NetConfig::NETWORK_DGRAM_UDP;
-					if (type_name == "dgram:usb") type = Configuration::NetConfig::NETWORK_DGRAM_USB;
+					if (type_name == "dgram:usb") type = Configuration::NetConfig::NETWORK_USB;
 					if (type_name == "dgram:lowpan") type = Configuration::NetConfig::NETWORK_DGRAM_LOWPAN;
 					if (type_name == "dgram:ethernet") type = Configuration::NetConfig::NETWORK_DGRAM_ETHERNET;
 					if (type_name == "email") type = Configuration::NetConfig::NETWORK_EMAIL;
@@ -892,7 +886,7 @@ namespace dtn
 							break;
 						}
 
-					case Configuration::NetConfig::NETWORK_DGRAM_USB:
+					case Configuration::NetConfig::NETWORK_USB:
 					{
 						nc.vendor = conf.read<int>(key_vendor, 0x483);
 						nc.product = conf.read<int>(key_product, 0x1df8);
@@ -1619,7 +1613,6 @@ namespace dtn
 		}
 
 		Configuration::USB::USB()
-		: _proxy(false), _gateway(false)
 		{
 		}
 
@@ -1629,24 +1622,12 @@ namespace dtn
 
 		void Configuration::USB::load(const ibrcommon::ConfigFile &conf)
 		{
-			_proxy = (conf.read<std::string>("usb_proxy", "no") == "yes");
-			_gateway = (conf.read<std::string>("usb_gateway", "no") == "yes");
 			_address = (conf.read<std::string>("usb_address", "no") == "yes");
 		}
 
 		const std::string& Configuration::USB::getOwnAddress() const
 		{
 			return _address;
-		}
-
-		const bool Configuration::USB::getGateway() const
-		{
-			return _gateway;
-		}
-
-		const bool Configuration::USB::getProxy() const
-		{
-			return _proxy;
 		}
 	}
 }

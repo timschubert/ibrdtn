@@ -214,7 +214,7 @@ namespace dtn
 
 					n.add(Node::URI(Node::NODE_DISCOVERED, Node::CONN_EMAIL, s.getParameters(), to_value_mailcl, -80));
 				}
-				else if (p == dtn::core::Node::CONN_DGRAM_USB)
+				else if (p == dtn::core::Node::CONN_USB)
 				{
 					// add USB parameters to node
 					n.add(Node::Attribute(Node::NODE_DISCOVERED, s.getName(), s.getParameters(), to_value));
@@ -247,31 +247,6 @@ namespace dtn
 
 					// set next advertisement period
 					_adv_next = ts + _beacon_period;
-				}
-			}
-		}
-
-		void DiscoveryAgent::onReceivedForward(const DiscoveryBeacon &beacon)
-		{
-			/* inform all providers that a new beacon was received */
-			for (handler_map::const_iterator it_p = _providers.begin(); it_p != _providers.end(); ++it_p)
-			{
-				const ibrcommon::vinterface &iface = (*it_p).first;
-				const handler_list &plist = (*it_p).second;
-
-				if (!_config.shortbeacon())
-				{
-					for (handler_list::const_iterator iter = plist.begin(); iter != plist.end(); ++iter)
-					{
-						DiscoveryBeaconHandler &handler = (**iter);
-
-						try
-						{
-							handler.onReceiveBeacon(iface, beacon);
-						} catch (const dtn::net::DiscoveryBeaconHandler::NoServiceHereException&)
-						{
-						}
-					}
 				}
 			}
 		}

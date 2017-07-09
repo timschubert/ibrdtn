@@ -69,7 +69,7 @@ namespace dtn
 					NETWORK_DGRAM_LOWPAN = 7,
 					NETWORK_DGRAM_ETHERNET = 8,
 					NETWORK_EMAIL = 9,
-					NETWORK_DGRAM_USB = 10
+					NETWORK_USB = 10
 				};
 
 				NetConfig(const std::string &name, NetType type);
@@ -183,10 +183,6 @@ namespace dtn
 				bool _short;
 				int _version;
 				bool _crosslayer;
-
-				/* true if discovery beacon should be made available to gateways */
-				bool _gateway;
-
 			public:
 				bool enabled() const;
 				bool announce() const;
@@ -196,7 +192,6 @@ namespace dtn
 				int port() const;
 				unsigned int interval() const;
 				bool enableCrosslayer() const;
-				bool gateway() const;
 			};
 
 			class Debug : public Configuration::Extension
@@ -966,16 +961,12 @@ namespace dtn
 			{
 				friend class Configuration;
 			public:
-				const bool getProxy() const;
-				const bool getGateway() const;
 				const std::string& getOwnAddress() const;
 			protected:
 				USB();
 				virtual ~USB();
 				void load(const ibrcommon::ConfigFile &conf);
 			private:
-				bool _proxy;
-				bool _gateway;
 				std::string _address;
 			};
 
