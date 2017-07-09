@@ -26,9 +26,8 @@ namespace ibrcommon
 	const std::string usbsocket::TAG = "usbsocket";
 
 	usbsocket::usbsocket(const usbinterface &iface, const uint8_t &endpoint_in, const uint8_t &endpoint_out, size_t buflen)
-	 : basesocket(-1), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _internal_fd(-1), _buffer_length(buflen)
+		: clientsocket(), ep_in(endpoint_in), ep_out(endpoint_out), interface(iface), _buffer_length(buflen), _internal_fd(-1)
 	{
-		basesocket::_state = SOCKET_DOWN;
 	}
 
 	usbsocket::~usbsocket()
@@ -42,11 +41,6 @@ namespace ibrcommon
 
 	void usbsocket::up() throw(socket_exception)
 	{
-		if (basesocket::_state == SOCKET_UP)
-		{
-			throw socket_exception("socket is already up");
-		}
-
 		/* create unnamed unix domain socket pair */
 		int pair[2];
 		int err = ::socketpair(AF_UNIX, SOCK_DGRAM, 0, pair);
@@ -57,7 +51,6 @@ namespace ibrcommon
 
 		_fd = pair[0];
 		_internal_fd = pair[1];
-		this->set_blocking_mode(false, _fd);
 
 		/* prepare the buffer with one pending transfer */
 		uint8_t *transfer_buffer = new uint8_t[_buffer_length];
@@ -67,17 +60,12 @@ namespace ibrcommon
 		*fd = _internal_fd;
 		submit_new_transfer(this->interface.get_handle(), this->ep_in, transfer_buffer, _buffer_length, transfer_in_cb, (void *) fd, 0, 0);
 
-		basesocket::_state = SOCKET_UP;
+		clientsocket::up();
 	}
 
 	void usbsocket::down() throw(socket_exception)
 	{
-		if (basesocket::_state == SOCKET_DOWN || basesocket::_state == SOCKET_DESTROYED)
-		{
-			throw socket_exception("socket down or destroyed");
-		}
-
-		basesocket::_state = SOCKET_DOWN;
+		clientsocket::down();
 
 		::close(_fd);
 		::close(_internal_fd);

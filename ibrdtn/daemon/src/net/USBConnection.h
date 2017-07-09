@@ -31,7 +31,8 @@
 #include "core/NodeEvent.h"
 #include "ibrcommon/Logger.h"
 #include "ibrcommon/net/dgramheader.h"
-#include "ibrcommon/thread/Mutex.h"
+#include "ibrcommon/thread/RWLock.h"
+#include "ibrcommon/thread/RWMutex.h"
 #include "ibrcommon/usb/usbstream.h"
 #include "storage/BundleStorage.h"
 
@@ -51,7 +52,7 @@ namespace dtn
 				virtual void eventBeaconReceived(DiscoveryBeacon &b) = 0;
 			};
 
-			USBConnection(usbstream &stream, dtn::core::Node &node, USBConnectionCallback &cb);
+			USBConnection(usbsocket *sock, dtn::core::Node &node, USBConnectionCallback &cb);
 			virtual ~USBConnection();
 
 			void raiseEvent(const NodeEvent &event) throw();
@@ -66,15 +67,16 @@ namespace dtn
 			void processJobs();
 			void processInput();
 
-			bool isDown() const;
+			void close();
 
 			friend USBConnection &operator<<(USBConnection &out, const dtn::data::Bundle &bundle);
 
 			friend USBConnection &operator<<(USBConnection &out, const DiscoveryBeacon &beacon);
 
 		private:
-			Mutex _safeLock;
-			usbstream &_stream;
+			RWMutex _rw;
+			socketstream *_stream;
+			usbsocket *_socket;
 
 			Queue<dtn::net::BundleTransfer> _work;
 

@@ -150,11 +150,6 @@ namespace dtn
 			usbinterface _interface;
 
 			/**
-			 * Locks access to connections
-			 */
-			Mutex _connectionsLock;
-
-			/**
 			 * Stream to the USB interface that the CL is connected to
 			 */
 			USBConnection *_connection;

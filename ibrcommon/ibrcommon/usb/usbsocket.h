@@ -81,7 +81,7 @@ namespace ibrcommon
 		 : usb_socket_error(msg) {}
 	};
 
-	class usbsocket: public basesocket
+	class usbsocket: public clientsocket
 	{
 	public:
 		/**

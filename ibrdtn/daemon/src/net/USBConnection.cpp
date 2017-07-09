@@ -27,9 +27,11 @@ namespace dtn
 {
 	namespace net
 	{
-		USBConnection::USBConnection(usbstream &stream, dtn::core::Node &_node, USBConnectionCallback &cb)
-		 : _stream(stream), _in_sequence_number(0), _out_sequence_number(0), _node(_node), _config(daemon::Configuration::getInstance().getUSB()), _cb(cb)
+		USBConnection::USBConnection(usbsocket *sock, dtn::core::Node &_node, USBConnectionCallback &cb)
+			: _socket(sock), _in_sequence_number(0), _out_sequence_number(0), _node(_node), _config(daemon::Configuration::getInstance().getUSB()), _cb(cb)
 		{
+			_stream = new socketstream(sock);
+			_stream->setTimeout({1, 0});
 		}
 
 		void USBConnection::raiseEvent(const NodeEvent &event) throw()
@@ -64,6 +66,8 @@ namespace dtn
 				BundleTransfer job = _work.poll(10);
 				job.abort(TransferAbortedEvent::REASON_CONNECTION_DOWN);
 			}
+
+			delete _stream;
 		}
 
 		bool USBConnection::match(const dtn::core::Node &node) const
@@ -129,9 +133,9 @@ namespace dtn
 					context.setBundle(data);
 					BundleFilter::ACTION ret = dtn::core::BundleCore::getInstance().filter(dtn::core::BundleFilter::OUTPUT, context, data);
 
-					_stream << data;
+					*_stream << data;
 
-					if (_stream.good())
+					if (_stream->good())
 					{
 						job.complete();
 					}
@@ -155,43 +159,45 @@ namespace dtn
 
 		USBConnection &operator<<(USBConnection &out, const dtn::data::Bundle &bundle)
 		{
-			MutexLock l(out._safeLock);
-			out._stream << 0x0;
-			DefaultSerializer(out._stream) << bundle;
+			RWLock l(out._rw);
+			const char *isBundle = "0";
+			out._stream->write(isBundle, 1);
+			DefaultSerializer(*(out._stream)) << bundle;
 			return out;
 		}
 
 		USBConnection &operator>>(USBConnection &in, dtn::data::Bundle &bundle)
 		{
-			MutexLock l(in._safeLock);
-			DefaultDeserializer(in._stream) >> bundle;
+			MutexLock l(in._rw);
+			DefaultDeserializer(*(in._stream)) >> bundle;
 			return in;
 		}
 
 		USBConnection &operator<<(USBConnection &out, const DiscoveryBeacon &beacon)
 		{
-			MutexLock l(out._safeLock);
-			out._stream << 0xff;
-			out._stream << beacon;
+			RWLock l(out._rw);
+			const char *isBeacon = "1";
+			out._stream->write(isBeacon, 1);
+			*(out._stream) << beacon;
 			return out;
 		}
 
 		USBConnection &operator>>(USBConnection &in, DiscoveryBeacon &beacon)
 		{
-			MutexLock l(in._safeLock);
-			in._stream >> beacon;
+			MutexLock l(in._rw);
+			*(in._stream) >> beacon;
 			return in;
 		}
 
 		void USBConnection::processInput()
 		{
-			char header;
+			char header[1];
 			{
-				MutexLock l(_safeLock);
-				_stream >> header;
+				MutexLock l(_rw);
+				_stream->read(header, 1);
 			}
 
-			if (header == 0)
+			if (header[0] == '0')
 			{
 				Bundle b;
 				(*this) >> b;
@@ -205,9 +211,9 @@ namespace dtn
 			}
 		}
 
-		bool USBConnection::isDown() const
+		void USBConnection::close()
 		{
-			return _stream.bad();
+			_stream->close();
 		}
 	}
 }

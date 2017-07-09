@@ -3,13 +3,11 @@
 h_sources = \
 	usbinterface.h \
 	usbsocket.h \
-	usbstream.h \
 	usbconnector.h
 
 cc_sources = \
 	usbinterface.cpp \
 	usbsocket.cpp \
-	usbstream.cpp \
 	usbconnector.cpp
 
 #Install the headers in a versioned directory

@@ -229,8 +229,8 @@ namespace ibrcommon {
 		virtual void up() throw (socket_exception);
 		virtual void down() throw (socket_exception);
 
-		ssize_t send(const char *data, size_t len, int flags = 0) throw (socket_exception);
-		ssize_t recv(char *data, size_t len, int flags = 0) throw (socket_exception);
+		virtual ssize_t send(const char *data, size_t len, int flags = 0) throw (socket_exception);
+		virtual ssize_t recv(char *data, size_t len, int flags = 0) throw (socket_exception);
 
 		void set(CLIENT_OPTION opt, bool val) throw (socket_exception);
 
