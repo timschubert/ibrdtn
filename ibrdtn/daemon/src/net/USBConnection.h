@@ -30,10 +30,10 @@
 #include "core/Node.h"
 #include "core/NodeEvent.h"
 #include "ibrcommon/Logger.h"
-#include "ibrcommon/net/dgramheader.h"
+#include "ibrcommon/net/socketstream.h"
 #include "ibrcommon/thread/RWLock.h"
 #include "ibrcommon/thread/RWMutex.h"
-#include "ibrcommon/usb/usbstream.h"
+#include "ibrcommon/usb/usbsocket.h"
 #include "storage/BundleStorage.h"
 
 using namespace ibrcommon;
@@ -61,7 +61,7 @@ namespace dtn
 			bool match(const dtn::data::EID &destination) const;
 			bool match(const dtn::core::NodeEvent &evt) const;
 
-			const dtn::core::Node& getNode() const;
+			const dtn::core::Node &getNode() const;
 
 			void queue(const dtn::net::BundleTransfer &transfer);
 			void processJobs();
@@ -81,8 +81,6 @@ namespace dtn
 			Queue<dtn::net::BundleTransfer> _work;
 
 			dtn::core::Node &_node;
-			uint8_t _in_sequence_number;
-			uint8_t _out_sequence_number;
 
 			/**
 			 * usb covergence layer config

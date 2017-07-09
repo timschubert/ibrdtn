@@ -28,7 +28,7 @@ namespace dtn
 	namespace net
 	{
 		USBConnection::USBConnection(usbsocket *sock, dtn::core::Node &_node, USBConnectionCallback &cb)
-			: _socket(sock), _in_sequence_number(0), _out_sequence_number(0), _node(_node), _config(daemon::Configuration::getInstance().getUSB()), _cb(cb)
+			: _socket(sock), _node(_node), _config(daemon::Configuration::getInstance().getUSB()), _cb(cb)
 		{
 			_stream = new socketstream(sock);
 			_stream->setTimeout({1, 0});

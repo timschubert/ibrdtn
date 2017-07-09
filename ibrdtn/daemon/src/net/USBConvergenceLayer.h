@@ -36,7 +36,6 @@
 #include "ibrcommon/usb/usbconnector.h"
 #include "ibrcommon/usb/usbinterface.h"
 #include "ibrcommon/usb/usbsocket.h"
-#include "ibrcommon/usb/usbstream.h"
 #include "ibrdtn/data/Serializer.h"
 
 using namespace ibrcommon;
@@ -60,7 +59,7 @@ namespace dtn
 		                            public DiscoveryBeaconHandler,
 		                            public usbconnector::usbdevice_cb,
 		                            public dtn::daemon::IndependentComponent,
-					    public USBConnection::USBConnectionCallback
+		                            public USBConnection::USBConnectionCallback
 		{
 		public:
 			static const std::string TAG;
