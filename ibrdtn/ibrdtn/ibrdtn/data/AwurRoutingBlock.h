@@ -122,12 +122,11 @@ namespace dtn
 			void setPath(const AwurPath &path);
 			const AwurPath& getPath() const;
 
+			AwurHop destination;
+			AwurPath chain;
+
 		protected:
 			AwurRoutingBlock();
-
-		private:
-			AwurHop _destination;
-			AwurPath _chain;
 		};
 
 		static AwurRoutingBlock::Factory __AwurRoutingBlockFactory__;

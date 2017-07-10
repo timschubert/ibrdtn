@@ -97,13 +97,18 @@ namespace dtn
 		Length AwurRoutingBlock::getLength() const
 		{
 			Length len(0);
+			Dictionary dict;
+
+			dict.add(destination.getEID());
+			const Dictionary::Reference &ref = dict.getRef(destination.getEID());
+
+			/* 1 byte for flags */
+			len += sizeof(char) + ref.first.getLength() + ref.second.getLength();
 
 			/* number of hops */
 			len += 1;
 
-			Dictionary dict;
-
-			for (const auto &hop : _chain.getHops())
+			for (const auto &hop : chain.getHops())
 			{
 				dict.add(hop.getEID());
 				const Dictionary::Reference &ref = dict.getRef(hop.getEID());
@@ -122,28 +127,29 @@ namespace dtn
 			/* create a dictionary in which to store the EIDs */
 			Dictionary dict;
 
-			dict.add(_destination.getEID());
+			char flags;
+			if (destination.getPlatform() == AwurHop::HPP)
+			{
+				flags = 0;
+			}
+			else
+			{
+				flags = 1;
+			}
 
-			const auto &hops = _chain.getHops();
+			dict.add(destination.getEID());
+			const Dictionary::Reference &destref = dict.getRef(destination.getEID());
+			stream.write(&flags, 1);
+			stream << destref.first << destref.second;
+
+			const auto &hops = chain.getHops();
+			SDNV<Length> num_hops(hops.size());
+			stream << num_hops;
 
 			for (const auto &hop : hops)
 			{
 				dict.add(hop.getEID());
 			}
-
-			const Dictionary::Reference &destref = dict.getRef(_destination.getEID());
-
-			char flags = 0;
-			if (_destination.getPlatform() == AwurHop::HPP)
-			{
-				flags |= (1 << 7);
-			}
-
-			stream << flags << destref.first << destref.second;
-
-			/* the number of hops in the list */
-			SDNV<Length> num_hops(hops.size());
-			stream << num_hops;
 
 			/* for each hop include the platform, the offset of the scheme part and
 			 * the offset of the SSP */
@@ -151,10 +157,14 @@ namespace dtn
 			{
 				const Dictionary::Reference &ref = dict.getRef(hop.getEID());
 
-				char flags = 0;
+				char flags;
 				if (hop.getPlatform() == AwurHop::HPP)
 				{
-					flags |= (1 << 7);
+					flags = 0;
+				}
+				else
+				{
+					flags = 1;
 				}
 
 				stream << flags << SDNV<Timeout>(hop.getTimeout()) << ref.first << ref.second;
@@ -170,21 +180,27 @@ namespace dtn
 
 		std::istream &AwurRoutingBlock::deserialize(std::istream &stream, const Length &length)
 		{
-			std::vector<char> flagsv;
-			std::vector<Dictionary::Reference> refs;
-			std::vector<Timeout> timeouts;
-
 			char destflags = 0;
-
 			stream >> destflags;
-
 			Dictionary::Reference destref;
 			stream >> destref.first >> destref.second;
+
+			AwurHop::Platform destpf;
+
+			if (destflags == 0)
+			{
+				destpf = AwurHop::HPP;
+			} else {
+				destpf = AwurHop::LPP;
+			}
 
 			SDNV<Length> num_hops;
 			stream >> num_hops;
 
-			/* extract platforms and offsets in order */
+			/* extract flags, platforms and timeouts in order */
+			std::vector<char> flagsv;
+			std::vector<Timeout> timeouts;
+			std::vector<Dictionary::Reference> refs;
 			for (Length i = 0; i < num_hops.get<Length>(); i++)
 			{
 				char flags = 0;
@@ -196,7 +212,6 @@ namespace dtn
 				timeouts.push_back(timeout.get<Timeout>());
 
 				Dictionary::Reference ref;
-
 				stream >> ref.first >> ref.second;
 				refs.push_back(ref);
 			}
@@ -205,35 +220,21 @@ namespace dtn
 			Dictionary dict;
 			stream >> dict;
 
-			AwurHop::Platform pf;
+			destination = AwurHop(dict.get(destref.first, destref.second), destpf, 0);
 
-			switch (destflags & (1 << 7))
-			{
-			case 1:
-				pf = AwurHop::HPP;
-				break;
-			default:
-				pf = AwurHop::LPP;
-				break;
-			}
-
-			_destination = AwurHop(dict.get(destref.first, destref.second), pf, 0);
-
-			/* build the nodes */
+			/* build the hops */
 			for (Length i = 0; i < flagsv.size(); i++)
 			{
-				switch (flagsv[i] & (1 << 7))
+				AwurHop::Platform pf;
+				if (destflags == 0)
 				{
-					case 1:
-						pf = AwurHop::HPP;
-						break;
-					default:
-						pf = AwurHop::LPP;
-						break;
+					pf = AwurHop::HPP;
+				} else {
+					pf = AwurHop::LPP;
 				}
 
 				AwurHop hop(dict.get(refs[i].first, refs[i].second), pf, timeouts[i]);
-				_chain.addHop(hop);
+				chain.addHop(hop);
 			}
 
 			return stream;
@@ -242,17 +243,17 @@ namespace dtn
 		void AwurRoutingBlock::setPath(const AwurPath &path)
 		{
 			/* make a copy */
-			_chain = path;
+			chain = path;
 		}
 
 		const AwurPath &AwurRoutingBlock::getPath() const
 		{
-			return _chain;
+			return chain;
 		}
 
 		const AwurHop &AwurRoutingBlock::getDestination() const
 		{
-			return _destination;
+			return destination;
 		}
 
 		AwurPath::~AwurPath()
@@ -276,15 +277,7 @@ namespace dtn
 
 		const AwurHop &AwurPath::getDestination() const
 		{
-			if (_path.empty())
-			{
-				AwurHop hop;
-				return hop;
-			}
-			else
-			{
-				return _path.back();
-			}
+			return _path.back();
 		}
 
 		void AwurPath::popNextHop()
