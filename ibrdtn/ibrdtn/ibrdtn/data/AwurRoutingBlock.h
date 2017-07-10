@@ -49,6 +49,8 @@ namespace dtn
 		class AwurHop
 		{
 		public:
+			static const AwurHop NOHOP;
+
 			enum Platform
 			{
 				LPP = 'l',
@@ -117,12 +119,8 @@ namespace dtn
 			std::ostream &serialize(std::ostream &stream, Length &length) const;
 			std::istream &deserialize(std::istream &stream, const Length &length);
 
-			const AwurHop &getDestination() const;
-
-			void setPath(const AwurPath &path);
-			const AwurPath& getPath() const;
-
 			AwurHop destination;
+			AwurHop source;
 			AwurPath chain;
 
 		protected:
