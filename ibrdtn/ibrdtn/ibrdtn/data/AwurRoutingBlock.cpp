@@ -99,42 +99,33 @@ namespace dtn
 		Length AwurRoutingBlock::getLength() const
 		{
 			Length len(0);
-			Dictionary dict;
 
 			/* destination */
-			dict.add(destination.getEID());
-			const Dictionary::Reference &ref = dict.getRef(destination.getEID());
-			/* 1 byte for flags */
-			len += sizeof(char) + ref.first.getLength() + ref.second.getLength();
+			auto compr = destination.getEID().getCompressed();
+			len += sizeof(char) + compr.first.getLength() + compr.second.getLength();
 
 			/* source */
-			dict.add(source.getEID());
-			const Dictionary::Reference &srcref = dict.getRef(source.getEID());
-			/* 1 byte for flags */
-			len += sizeof(char) + srcref.first.getLength() + srcref.second.getLength();
+			compr = source.getEID().getCompressed();
+			len += sizeof(char) + compr.first.getLength() + compr.second.getLength();
 
 			/* number of hops */
-			len += 1;
+			Number num_hops;
 
 			for (const auto &hop : chain.getHops())
 			{
-				dict.add(hop.getEID());
-				const Dictionary::Reference &ref = dict.getRef(hop.getEID());
+				num_hops += 1;
 
-				/* 1 byte for flags */
-				len += sizeof(char) + SDNV<Timeout>(hop.getTimeout()).getLength() + ref.first.getLength() + ref.second.getLength();
+				compr = destination.getEID().getCompressed();
+				len += sizeof(char) + SDNV<Timeout>(hop.getTimeout()).getLength() + compr.first.getLength() + compr.second.getLength();
 			}
 
-			len += dict.getSize();
+			len += num_hops.getLength();
 
 			return len;
 		}
 
 		std::ostream &AwurRoutingBlock::serialize(std::ostream &stream, Length &length) const
 		{
-			/* create a dictionary in which to store the EIDs */
-			Dictionary dict;
-
 			/* destination */
 			char flags;
 			if (destination.getPlatform() == AwurHop::HPP)
@@ -145,10 +136,9 @@ namespace dtn
 			{
 				flags = 1;
 			}
-			dict.add(destination.getEID());
-			const Dictionary::Reference &destref = dict.getRef(destination.getEID());
+			auto compr = destination.getEID().getCompressed();
 			stream.write(&flags, 1);
-			stream << destref.first << destref.second;
+			stream << compr.first << compr.second;
 
 			/* source */
 			if (source.getPlatform() == AwurHop::HPP)
@@ -159,28 +149,17 @@ namespace dtn
 			{
 				flags = 1;
 			}
-			dict.add(source.getEID());
-			const Dictionary::Reference &srcref = dict.getRef(source.getEID());
+			compr = source.getEID().getCompressed();
 			stream.write(&flags, 1);
-			stream << srcref.first << srcref.second;
+			stream << compr.first << compr.second;
 
-			const auto &hops = chain.getHops();
+			auto hops = chain.getHops();
 			SDNV<Length> num_hops(hops.size());
 			stream << num_hops;
 
 			for (const auto &hop : hops)
 			{
-				dict.add(hop.getEID());
-			}
-
-			/* for each hop include the platform, the offset of the scheme part and
-			 * the offset of the SSP */
-			for (const auto &hop : hops)
-			{
-				const Dictionary::Reference &ref = dict.getRef(hop.getEID());
-
-				char flags;
-				if (hop.getPlatform() == AwurHop::HPP)
+				if (source.getPlatform() == AwurHop::HPP)
 				{
 					flags = 0;
 				}
@@ -188,12 +167,10 @@ namespace dtn
 				{
 					flags = 1;
 				}
-
-				stream << flags << SDNV<Timeout>(hop.getTimeout()) << ref.first << ref.second;
+				compr = source.getEID().getCompressed();
+				stream.write(&flags, 1);
+				stream << flags << SDNV<Timeout>(hop.getTimeout()) << compr.first << compr.second;
 			}
-
-			/* in the end, there will be the dict */
-			stream << dict;
 
 			length = getLength();
 
@@ -203,72 +180,51 @@ namespace dtn
 		std::istream &AwurRoutingBlock::deserialize(std::istream &stream, const Length &length)
 		{
 			/* destination */
-			char destflags = 0;
-			stream >> destflags;
-			Dictionary::Reference destref;
-			stream >> destref.first >> destref.second;
-			AwurHop::Platform destpf;
-			if (destflags == 0)
+			char flags = 0;
+			AwurHop::Platform pf;
+			Number ipn_node;
+			Number ipn_app;
+
+			/* destination */
+			stream >> flags;
+			stream >> ipn_node >> ipn_app;
+			if (flags == 0)
 			{
-				destpf = AwurHop::HPP;
+				pf = AwurHop::HPP;
 			} else {
-				destpf = AwurHop::LPP;
+				pf = AwurHop::LPP;
 			}
+			destination = AwurHop(EID(ipn_node, ipn_app), pf, 0);
 
 			/* source */
-			char srcflags = 0;
-			stream >> srcflags;
-			Dictionary::Reference srcref;
-			stream >> srcref.first >> srcref.second;
-			AwurHop::Platform srcpf;
-			if (srcflags == 0)
+			stream >> flags;
+			stream >> ipn_node >> ipn_app;
+			if (flags == 0)
 			{
-				srcpf = AwurHop::HPP;
+				pf = AwurHop::HPP;
 			} else {
-				srcpf = AwurHop::LPP;
+				pf = AwurHop::LPP;
 			}
+			source = AwurHop(EID(ipn_node, ipn_app), pf, 0);
 
 			SDNV<Length> num_hops;
 			stream >> num_hops;
 
-			/* extract flags, platforms and timeouts in order */
-			std::vector<char> flagsv;
-			std::vector<Timeout> timeouts;
-			std::vector<Dictionary::Reference> refs;
+			/* extract hops in order */
+			SDNV<Timeout> timeout;
 			for (Length i = 0; i < num_hops.get<Length>(); i++)
 			{
-				char flags = 0;
 				stream >> flags;
-				flagsv.push_back(flags);
-
-				SDNV<Timeout> timeout;
 				stream >> timeout;
-				timeouts.push_back(timeout.get<Timeout>());
-
-				Dictionary::Reference ref;
-				stream >> ref.first >> ref.second;
-				refs.push_back(ref);
-			}
-
-			/* get the dict */
-			Dictionary dict;
-			stream >> dict;
-
-			destination = AwurHop(dict.get(destref.first, destref.second), destpf, 0);
-			source = AwurHop(dict.get(srcref.first, srcref.second), srcpf, 0);
-
-			/* build the hops */
-			for (Length i = 0; i < flagsv.size(); i++)
-			{
-				AwurHop::Platform pf;
-				if (destflags == 0)
+				stream >> ipn_node >> ipn_app;
+				if (flags == 0)
 				{
 					pf = AwurHop::HPP;
 				} else {
 					pf = AwurHop::LPP;
 				}
 
-				AwurHop hop(dict.get(refs[i].first, refs[i].second), pf, timeouts[i]);
+				AwurHop hop(EID(ipn_node, ipn_app), pf, timeout.get<Timeout>());
 				chain.addHop(hop);
 			}
 
