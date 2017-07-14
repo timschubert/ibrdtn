@@ -34,11 +34,11 @@ namespace dtn
 			return new AwurRoutingBlock();
 		}
 
-		AwurHop::AwurHop() : _eid(), _platform(HPP), _timeout(0)
+		AwurHop::AwurHop() : _eid(), _platform('h'), _timeout(0)
 		{
 		}
 
-		AwurHop::AwurHop(const EID &eid, Platform platform, const size_t &timeout = 0) : _eid(eid), _platform(platform), _timeout(timeout)
+		AwurHop::AwurHop(const EID &eid, char platform, const size_t &timeout = 0) : _eid(eid), _platform(platform), _timeout(timeout)
 		{
 		}
 
@@ -47,7 +47,7 @@ namespace dtn
 			return _eid;
 		}
 
-		AwurHop::Platform AwurHop::getPlatform() const
+		char AwurHop::getPlatform() const
 		{
 			return _platform;
 		}
@@ -128,7 +128,7 @@ namespace dtn
 		{
 			/* destination */
 			char flags;
-			if (destination.getPlatform() == AwurHop::HPP)
+			if (destination.getPlatform() == 'h')
 			{
 				flags = 0;
 			}
@@ -141,7 +141,7 @@ namespace dtn
 			stream << compr.first << compr.second;
 
 			/* source */
-			if (source.getPlatform() == AwurHop::HPP)
+			if (source.getPlatform() == 'h')
 			{
 				flags = 0;
 			}
@@ -159,7 +159,7 @@ namespace dtn
 
 			for (const auto &hop : hops)
 			{
-				if (source.getPlatform() == AwurHop::HPP)
+				if (source.getPlatform() == 'h')
 				{
 					flags = 0;
 				}
@@ -181,7 +181,7 @@ namespace dtn
 		{
 			/* destination */
 			char flags = 0;
-			AwurHop::Platform pf;
+			char pf;
 			Number ipn_node;
 			Number ipn_app;
 
@@ -190,9 +190,9 @@ namespace dtn
 			stream >> ipn_node >> ipn_app;
 			if (flags == 0)
 			{
-				pf = AwurHop::HPP;
+				pf = 'h';
 			} else {
-				pf = AwurHop::LPP;
+				pf = 'l';
 			}
 			destination = AwurHop(EID(ipn_node, ipn_app), pf, 0);
 
@@ -201,9 +201,9 @@ namespace dtn
 			stream >> ipn_node >> ipn_app;
 			if (flags == 0)
 			{
-				pf = AwurHop::HPP;
+				pf = 'h';
 			} else {
-				pf = AwurHop::LPP;
+				pf = 'l';
 			}
 			source = AwurHop(EID(ipn_node, ipn_app), pf, 0);
 
@@ -219,9 +219,9 @@ namespace dtn
 				stream >> ipn_node >> ipn_app;
 				if (flags == 0)
 				{
-					pf = AwurHop::HPP;
+					pf = 'h';
 				} else {
-					pf = AwurHop::LPP;
+					pf = 'l';
 				}
 
 				AwurHop hop(EID(ipn_node, ipn_app), pf, timeout.get<Timeout>());

@@ -50,6 +50,7 @@ namespace ibrcommon
 		}
 
 		_fd = pair[0];
+		set(BLOCKING, false);
 		_internal_fd = pair[1];
 
 		/* prepare the buffer with one pending transfer */

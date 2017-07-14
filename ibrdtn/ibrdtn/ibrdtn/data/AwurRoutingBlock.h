@@ -51,17 +51,11 @@ namespace dtn
 		public:
 			static const AwurHop NOHOP;
 
-			enum Platform
-			{
-				LPP = 'l',
-				HPP = 'h',
-			};
-
 			AwurHop();
-			AwurHop(const EID &eid, Platform platform, const size_t &timeout);
+			AwurHop(const EID &eid, char platform, const size_t &timeout);
 
 			const EID &getEID() const;
-			Platform getPlatform() const;
+			char getPlatform() const;
 			Timeout getTimeout() const;
 
 			bool operator<(const AwurHop &other) const;
@@ -71,7 +65,7 @@ namespace dtn
 
 		private:
 			EID _eid;
-			Platform _platform;
+			char _platform;
 
 			/* tells the router when to forward the bundle */
 			size_t _timeout;
@@ -140,8 +134,7 @@ namespace std
 		size_t operator()(const argument_type &k) const
 			{
 				size_t const h1(hash<string>{}(k.getEID().getString()));
-				size_t const h2(hash<char>{}(static_cast<char>(k.getPlatform())));
-				return h1 ^ (h2 << 1);
+				return h1 ^ k.getPlatform();
 			}
 	};
 	template <> struct hash<dtn::data::AwurPath>
