@@ -34,11 +34,11 @@ namespace dtn
 			return new AwurRoutingBlock();
 		}
 
-		AwurHop::AwurHop() : _eid(), _platform('h'), _timeout(0)
+		AwurHop::AwurHop() : _eid(), _platform(0), _timeout(0)
 		{
 		}
 
-		AwurHop::AwurHop(const EID &eid, char platform, const size_t &timeout = 0) : _eid(eid), _platform(platform), _timeout(timeout)
+		AwurHop::AwurHop(const EID &eid, char flags, const size_t &timeout = 0) : _eid(eid), _platform(flags), _timeout(timeout)
 		{
 		}
 
@@ -102,11 +102,11 @@ namespace dtn
 
 			/* destination */
 			auto compr = destination.getEID().getCompressed();
-			len += sizeof(char) + compr.first.getLength() + compr.second.getLength();
+			len += compr.first.getLength() + compr.second.getLength();
 
 			/* source */
 			compr = source.getEID().getCompressed();
-			len += sizeof(char) + compr.first.getLength() + compr.second.getLength();
+			len += compr.first.getLength() + compr.second.getLength();
 
 			/* number of hops */
 			Number num_hops;
@@ -126,31 +126,14 @@ namespace dtn
 
 		std::ostream &AwurRoutingBlock::serialize(std::ostream &stream, Length &length) const
 		{
-			/* destination */
 			char flags;
-			if (destination.getPlatform() == 'h')
-			{
-				flags = 0;
-			}
-			else
-			{
-				flags = 1;
-			}
+
+			/* destination */
 			auto compr = destination.getEID().getCompressed();
-			stream.write(&flags, 1);
 			stream << compr.first << compr.second;
 
 			/* source */
-			if (source.getPlatform() == 'h')
-			{
-				flags = 0;
-			}
-			else
-			{
-				flags = 1;
-			}
 			compr = source.getEID().getCompressed();
-			stream.write(&flags, 1);
 			stream << compr.first << compr.second;
 
 			auto hops = chain.getHops();
@@ -159,17 +142,10 @@ namespace dtn
 
 			for (const auto &hop : hops)
 			{
-				if (source.getPlatform() == 'h')
-				{
-					flags = 0;
-				}
-				else
-				{
-					flags = 1;
-				}
+				flags = hop.getPlatform();
 				compr = source.getEID().getCompressed();
 				stream.write(&flags, 1);
-				stream << flags << SDNV<Timeout>(hop.getTimeout()) << compr.first << compr.second;
+				stream << SDNV<Timeout>(hop.getTimeout()) << compr.first << compr.second;
 			}
 
 			length = getLength();
@@ -179,33 +155,19 @@ namespace dtn
 
 		std::istream &AwurRoutingBlock::deserialize(std::istream &stream, const Length &length)
 		{
-			/* destination */
-			char flags = 0;
 			char pf;
+
+			/* destination */
 			Number ipn_node;
 			Number ipn_app;
 
 			/* destination */
-			stream >> flags;
 			stream >> ipn_node >> ipn_app;
-			if (flags == 0)
-			{
-				pf = 'h';
-			} else {
-				pf = 'l';
-			}
-			destination = AwurHop(EID(ipn_node, ipn_app), pf, 0);
+			destination = AwurHop(EID(ipn_node, ipn_app), 0, 0);
 
 			/* source */
-			stream >> flags;
 			stream >> ipn_node >> ipn_app;
-			if (flags == 0)
-			{
-				pf = 'h';
-			} else {
-				pf = 'l';
-			}
-			source = AwurHop(EID(ipn_node, ipn_app), pf, 0);
+			source = AwurHop(EID(ipn_node, ipn_app), 0, 0);
 
 			SDNV<Length> num_hops;
 			stream >> num_hops;
@@ -214,15 +176,9 @@ namespace dtn
 			SDNV<Timeout> timeout;
 			for (Length i = 0; i < num_hops.get<Length>(); i++)
 			{
-				stream >> flags;
+				stream.read(&pf, 1);
 				stream >> timeout;
 				stream >> ipn_node >> ipn_app;
-				if (flags == 0)
-				{
-					pf = 'h';
-				} else {
-					pf = 'l';
-				}
 
 				AwurHop hop(EID(ipn_node, ipn_app), pf, timeout.get<Timeout>());
 				chain.addHop(hop);

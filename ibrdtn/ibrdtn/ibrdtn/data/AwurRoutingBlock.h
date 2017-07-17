@@ -30,6 +30,9 @@
 
 using namespace ibrcommon;
 
+#define AWUR_HPP (1 << 1)
+#define AWUR_LPP (1 << 2)
+
 namespace dtn
 {
 	namespace data
@@ -134,7 +137,7 @@ namespace std
 		size_t operator()(const argument_type &k) const
 			{
 				size_t const h1(hash<string>{}(k.getEID().getString()));
-				return h1 ^ k.getPlatform();
+				return h1;
 			}
 	};
 	template <> struct hash<dtn::data::AwurPath>
