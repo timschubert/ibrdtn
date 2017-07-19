@@ -208,13 +208,13 @@ namespace dtn
 
 		const AwurHop &AwurPath::getDestination() const
 		{
-			return _path.front();
+			return _path.back();
 		}
 
 		void AwurPath::popNextHop()
 		{
 			if (!_path.empty())
-				_path.pop_back();
+				_path.pop_front();
 		}
 
 		const AwurHop &AwurPath::getNextHop() const
@@ -222,7 +222,7 @@ namespace dtn
 			if (empty()) {
 				return AwurHop::NOHOP;
 			} else {
-				return _path.back();
+				return _path.front();
 			}
 		}
 
