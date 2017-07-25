@@ -66,6 +66,12 @@ namespace ibrcommon
 
 		virtual void usb_loop(void) throw();
 
+		fd_set get_in();
+		fd_set get_out();
+		int get_high();
+		int get_timeout(struct timeval *timeout);
+		void handle_completed();
+
 	private:
 		usbconnector();
 

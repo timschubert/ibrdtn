@@ -252,4 +252,31 @@ namespace ibrcommon
 
 		return iface;
 	}
+
+	fd_set usbconnector::get_in()
+	{
+		return this->_usb_in;
+	}
+
+	fd_set usbconnector::get_out()
+	{
+		return this->_usb_out;
+	}
+
+	int usbconnector::get_timeout(struct timeval *timeout)
+	{
+		return libusb_get_next_timeout(_usb_context, timeout);
+	}
+
+	void usbconnector::handle_completed()
+	{
+		static int lock = 0;
+		struct timeval zero_timeout = {0, 0};
+		libusb_handle_events_timeout_completed(_usb_context, &zero_timeout, &lock);
+	}
+
+	int usbconnector::get_high()
+	{
+		return this->_high_fd;
+	}
 }
