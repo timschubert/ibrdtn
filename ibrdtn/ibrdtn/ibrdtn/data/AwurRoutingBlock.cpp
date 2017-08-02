@@ -101,11 +101,11 @@ namespace dtn
 			Length len(0);
 
 			/* destination */
-			auto compr = destination.getEID().getCompressed();
+			auto compr = destination.getCompressed();
 			len += compr.first.getLength() + compr.second.getLength();
 
 			/* source */
-			compr = source.getEID().getCompressed();
+			compr = source.getCompressed();
 			len += compr.first.getLength() + compr.second.getLength();
 
 			/* number of hops */
@@ -115,7 +115,7 @@ namespace dtn
 			{
 				num_hops += 1;
 
-				compr = destination.getEID().getCompressed();
+				compr = destination.getCompressed();
 				len += sizeof(char) + SDNV<Timeout>(hop.getTimeout()).getLength() + compr.first.getLength() + compr.second.getLength();
 			}
 
@@ -129,11 +129,11 @@ namespace dtn
 			char flags;
 
 			/* destination */
-			auto compr = destination.getEID().getCompressed();
+			auto compr = destination.getCompressed();
 			stream << compr.first << compr.second;
 
 			/* source */
-			compr = source.getEID().getCompressed();
+			compr = source.getCompressed();
 			stream << compr.first << compr.second;
 
 			auto hops = chain.getHops();
@@ -143,7 +143,7 @@ namespace dtn
 			for (const auto &hop : hops)
 			{
 				flags = hop.getPlatform();
-				compr = source.getEID().getCompressed();
+				compr = hop.getEID().getCompressed();
 				stream.write(&flags, 1);
 				stream << SDNV<Timeout>(hop.getTimeout()) << compr.first << compr.second;
 			}
@@ -163,11 +163,11 @@ namespace dtn
 
 			/* destination */
 			stream >> ipn_node >> ipn_app;
-			destination = AwurHop(EID(ipn_node, ipn_app), 0, 0);
+			destination = EID(ipn_node, ipn_app);
 
 			/* source */
 			stream >> ipn_node >> ipn_app;
-			source = AwurHop(EID(ipn_node, ipn_app), 0, 0);
+			source = EID(ipn_node, ipn_app);
 
 			SDNV<Length> num_hops;
 			stream >> num_hops;

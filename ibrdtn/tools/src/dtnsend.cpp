@@ -26,6 +26,7 @@
 #include <ibrcommon/thread/MutexLock.h>
 #include <ibrcommon/data/BLOB.h>
 #include <ibrcommon/Logger.h>
+#include <ibrdtn/data/AwurRoutingBlock.h>
 
 #include <iostream>
 
@@ -48,6 +49,7 @@ void print_help()
 	cout << " --sign           Request signature on the bundle layer" << endl;
 	cout << " --custody        Request custody transfer of the bundle" << endl;
 	cout << " --compression    Request compression of the payload" << endl;
+	cout << " --awur           Use AWuR to send bundle" << endl;
 
 }
 
@@ -67,6 +69,8 @@ int main(int argc, char *argv[])
 	bool bundle_custody = false;
 	bool bundle_compression = false;
 	bool bundle_group = false;
+	bool awur = false;
+	string awur_gateway = "";
 
 //	ibrcommon::Logger::setVerbosity(99);
 //	ibrcommon::Logger::addStream(std::cout, ibrcommon::Logger::LOGGER_ALL, ibrcommon::Logger::LOG_DATETIME | ibrcommon::Logger::LOG_LEVEL);
@@ -162,6 +166,18 @@ int main(int argc, char *argv[])
 			{
 				bundle_group = true;
 			}
+			else if (arg == "--awur") {
+				if (++i > argc)
+				{
+					std::cout << "awur gatway argument missing!" << std::endl;
+					return -1;
+				}
+
+				stringstream data; data << argv[i];
+				data >> awur_gateway;
+
+				awur = true;
+			}
 			else
 			{
 				std::cout << "invalid argument " << arg << std::endl;
@@ -243,8 +259,22 @@ int main(int argc, char *argv[])
 					for(int u=0; u<copies; ++u){
 						dtn::data::Bundle b;
 
-						// set the destination
-						b.destination = file_destination;
+						if (awur)
+						{
+							b.push_back(dtn::data::__AwurRoutingBlockFactory__);
+							dtn::data::AwurRoutingBlock &ablk = b.find<dtn::data::AwurRoutingBlock>();
+
+							/* set AWuR destination and source */
+
+							ablk.destination = file_destination;
+							ablk.source = dtn::data::EID("api:me");
+
+							// send to awur gateway
+							b.destination = EID(awur_gateway);
+						} else {
+							// set the destination
+							b.destination = file_destination;
+						}
 
 						// add payload block with the reference
 						b.push_back(ref);

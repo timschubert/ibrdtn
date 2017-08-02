@@ -116,8 +116,8 @@ namespace dtn
 			std::ostream &serialize(std::ostream &stream, Length &length) const;
 			std::istream &deserialize(std::istream &stream, const Length &length);
 
-			AwurHop destination;
-			AwurHop source;
+			EID destination;
+			EID source;
 			AwurPath chain;
 
 		protected:
