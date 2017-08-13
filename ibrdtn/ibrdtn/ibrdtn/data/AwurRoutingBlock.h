@@ -63,6 +63,8 @@ namespace dtn
 		class AwurRoutingBlock: public ExtensionBlock
 		{
 		public:
+			static const block_t BLOCK_TYPE;
+
 			class Factory: public dtn::data::ExtensionBlock::Factory
 			{
 			public:
@@ -77,8 +79,6 @@ namespace dtn
 				;
 				virtual dtn::data::Block *create();
 			};
-
-			static const block_t BLOCK_TYPE;
 
 			Length getLength() const;
 			std::ostream &serialize(std::ostream &stream, Length &length) const;

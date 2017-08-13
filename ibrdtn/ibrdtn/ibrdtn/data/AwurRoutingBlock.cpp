@@ -81,6 +81,8 @@ namespace dtn
 
 		AwurRoutingBlock::AwurRoutingBlock()
 		{
+			setType(AwurRoutingBlock::BLOCK_TYPE);
+			set(REPLICATE_IN_EVERY_FRAGMENT, true);
 		}
 
 		Length AwurRoutingBlock::getLength() const
@@ -98,7 +100,6 @@ namespace dtn
 
 			for (const auto &hop : chain)
 			{
-				num_hops += 1;
 				compr = hop.getEID().getCompressed();
 				len += sizeof(char) + SDNV<Timeout>(hop.getTimeout()).getLength() + compr.first.getLength() + compr.second.getLength();
 			}
