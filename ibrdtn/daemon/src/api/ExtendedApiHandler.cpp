@@ -33,6 +33,7 @@
 #include <ibrcommon/data/Base64Stream.h>
 #include "core/BundleCore.h"
 #include <ibrdtn/utils/Random.h>
+#include <ibrdtn/data/BlobBlock.h>
 
 #include <ibrdtn/ibrdtn.h>
 #ifdef IBRDTN_SUPPORT_BSP
@@ -729,7 +730,7 @@ namespace dtn
 
 									// abort here if the stream is no payload block
 									try {
-										dtn::data::PayloadBlock &pb = dynamic_cast<dtn::data::PayloadBlock&>(block);
+										dtn::data::BlobBlock &pb = dynamic_cast<dtn::data::BlobBlock&>(block);
 
 										// open the payload BLOB
 										ibrcommon::BLOB::Reference ref = pb.getBLOB();
@@ -778,7 +779,7 @@ namespace dtn
 
 							// abort there if the stream is no payload block
 							try {
-								dtn::data::PayloadBlock &pb = dynamic_cast<dtn::data::PayloadBlock&>(block);
+								dtn::data::BlobBlock &pb = dynamic_cast<dtn::data::BlobBlock&>(block);
 
 								// write continue request to API
 								_stream << ClientHandler::API_STATUS_CONTINUE << " PAYLOAD PUT" << std::endl;

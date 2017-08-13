@@ -6,6 +6,7 @@ h_sources = \
 	AwurRoutingBlock.h \
 	ScopeControlHopLimitBlock.h \
 	Block.h \
+	BlobBlock.h \
 	Bundle.h \
 	BundleID.h \
 	BundleList.h \
