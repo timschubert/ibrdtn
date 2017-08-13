@@ -3,6 +3,7 @@
 h_sources = \
 	Serializer.h \
 	AgeBlock.h \
+	AwurRoutingBlock.h \
 	ScopeControlHopLimitBlock.h \
 	Block.h \
 	Bundle.h \
@@ -37,6 +38,7 @@ h_sources = \
 cc_sources = \
 	Serializer.cpp \
 	AgeBlock.cpp \
+	AwurRoutingBlock.cpp \
 	ScopeControlHopLimitBlock.cpp \
 	Block.cpp \
 	Bundle.cpp \
