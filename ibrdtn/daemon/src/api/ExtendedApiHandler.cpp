@@ -779,7 +779,7 @@ namespace dtn
 
 							// abort there if the stream is no payload block
 							try {
-								dtn::data::PayloadBlock &pb = dynamic_cast<dtn::data::PayloadBlock&>(block);
+								dtn::data::BlobBlock &pb = dynamic_cast<dtn::data::BlobBlock&>(block);
 
 								// write continue request to API
 								_stream << ClientHandler::API_STATUS_CONTINUE << " PAYLOAD PUT" << std::endl;
