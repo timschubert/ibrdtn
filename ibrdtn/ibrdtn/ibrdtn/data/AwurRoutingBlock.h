@@ -84,7 +84,7 @@ namespace dtn
 			std::ostream &serialize(std::ostream &stream, Length &length) const;
 			std::istream &deserialize(std::istream &stream, const Length &length);
 
-			Number sequence_number;
+			unsigned long sequence_number;
 			EID destination;
 			EID source;
 			deque<AwurHop> chain;

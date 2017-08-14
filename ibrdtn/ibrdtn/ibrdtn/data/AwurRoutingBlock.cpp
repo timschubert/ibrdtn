@@ -87,9 +87,10 @@ namespace dtn
 
 		Length AwurRoutingBlock::getLength() const
 		{
-			Length len = this->sequence_number.getLength();
+			Number tmp(this->sequence_number);
+			Length len = tmp.getLength();
 
-			auto compr = destination.getCompressed();
+			pair<Number, Number> compr = destination.getCompressed();
 			len += compr.first.getLength() + compr.second.getLength();
 			compr = source.getCompressed();
 			len += compr.first.getLength() + compr.second.getLength();
@@ -98,10 +99,10 @@ namespace dtn
 			Number num_hops = chain.size();
 			len += num_hops.getLength();
 
-			for (const auto &hop : chain)
+			for (deque<AwurHop>::const_iterator it = chain.begin(); it != chain.end(); it++)
 			{
-				compr = hop.getEID().getCompressed();
-				len += sizeof(char) + SDNV<Timeout>(hop.getTimeout()).getLength() + compr.first.getLength() + compr.second.getLength();
+				compr = it->getEID().getCompressed();
+				len += sizeof(char) + SDNV<Timeout>(it->getTimeout()).getLength() + compr.first.getLength() + compr.second.getLength();
 			}
 
 			return len;
@@ -113,7 +114,7 @@ namespace dtn
 
 			stream << this->sequence_number;
 
-			auto compr = destination.getCompressed();
+			std::pair<Number, Number> compr = destination.getCompressed();
 			stream << compr.first << compr.second;
 			compr = source.getCompressed();
 			stream << compr.first << compr.second;
@@ -121,12 +122,12 @@ namespace dtn
 			Number num_hops(chain.size());
 			stream << num_hops;
 
-			for (const auto &hop : chain)
+			for (deque<AwurHop>::const_iterator it = chain.begin(); it != chain.end(); it++)
 			{
-				flags = hop.getFlags();
-				compr = hop.getEID().getCompressed();
+				flags = it->getFlags();
+				compr = it->getEID().getCompressed();
 				stream.write(&flags, 1);
-				stream << SDNV<Timeout>(hop.getTimeout()) << compr.first << compr.second;
+				stream << SDNV<Timeout>(it->getTimeout()) << compr.first << compr.second;
 			}
 
 			length = getLength();
@@ -136,7 +137,9 @@ namespace dtn
 
 		std::istream &AwurRoutingBlock::deserialize(std::istream &stream, const Length &length)
 		{
-			stream >> this->sequence_number;
+			Number seqnr;
+			stream >> seqnr;
+			this->sequence_number = seqnr.get();
 
 			char flags;
 			SDNV<Timeout> timeout;
