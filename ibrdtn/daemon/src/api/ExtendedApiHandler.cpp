@@ -736,10 +736,14 @@ namespace dtn
 										ibrcommon::BLOB::Reference ref = pb.getBLOB();
 										ibrcommon::BLOB::iostream stream = ref.iostream();
 
-										if (static_cast<std::streamsize>(payload_offset) >= stream.size())
+										/* update BLOB with changed block contents */
+										Length payload_size = 0;
+										block.serialize((*stream), payload_size);
+
+										if (static_cast<std::streamsize>(payload_offset) >= payload_size)
 											throw ibrcommon::Exception("offset out of range");
 
-										size_t remaining = stream.size() - payload_offset;
+										size_t remaining = payload_size - payload_offset;
 
 										if ((length > 0) && (remaining > length)) {
 											remaining = length;
