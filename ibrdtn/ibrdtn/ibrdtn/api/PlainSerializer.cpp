@@ -421,12 +421,14 @@ namespace dtn
 
 			// read the appended newline character
 			getline(_stream, buffer);
+			IBRCOMMON_LOGGER_DEBUG_TAG("PlainSerializer", 10) << "Last line A was " << buffer.size() << " long" << IBRCOMMON_LOGGER_ENDL;
 			std::string::reverse_iterator iter = buffer.rbegin();
 			if ( (*iter) == '\r' ) buffer = buffer.substr(0, buffer.length() - 1);
 			if (buffer.size() != 0) throw dtn::InvalidDataException("last line not empty");
 
 			// read the final empty line
 			getline(_stream, buffer);
+			IBRCOMMON_LOGGER_DEBUG_TAG("PlainSerializer", 10) << "Last line B was " << buffer << IBRCOMMON_LOGGER_ENDL;
 			iter = buffer.rbegin();
 			if ( (*iter) == '\r' ) buffer = buffer.substr(0, buffer.length() - 1);
 			if (buffer.size() != 0) throw dtn::InvalidDataException("last line not empty");

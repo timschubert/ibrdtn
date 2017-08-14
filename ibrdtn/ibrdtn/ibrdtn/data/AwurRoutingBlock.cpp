@@ -137,9 +137,7 @@ namespace dtn
 
 		std::istream &AwurRoutingBlock::deserialize(std::istream &stream, const Length &length)
 		{
-			Number seqnr;
-			stream >> seqnr;
-			this->sequence_number = seqnr.get();
+			stream >> this->sequence_number;
 
 			char flags;
 			SDNV<Timeout> timeout;
